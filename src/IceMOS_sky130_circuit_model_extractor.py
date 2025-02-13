@@ -71,7 +71,7 @@ class ModelExtractor:
     }
 
     # Internal data for PFET bins (pch)
-    pfet_bins = {
+    pmos_bins = {
         0: (1.26, 0.15),
         1: (1.68, 0.15),
         2: (1.0, 1.0),
@@ -159,7 +159,7 @@ class ModelExtractor:
         else:  # For pch
             device_str = 'pmos'
             bin_prefix = "sky130_fd_pr__pfet_01v8__model"
-            dims = ModelExtractor.pfet_bins
+            dims = ModelExtractor.pmos_bins
 
         # Regular expression to find the start of a bin model section for the correct device type
         bin_pattern = re.compile(
@@ -250,7 +250,7 @@ class ModelExtractor:
         if self.device_type == 'nch':
             dims = ModelExtractor.nmos_bins
         else:
-            dims = ModelExtractor.pfet_bins
+            dims = ModelExtractor.pmos_bins
 
         found_bin = None
         for bin_number, (w_val, l_val) in dims.items():

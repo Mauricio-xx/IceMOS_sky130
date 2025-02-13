@@ -1,0 +1,44 @@
+** sch_path: /foss/designs/Endurance_Cryo_ToolBox/src/exp/sky130/nch/IV_current_vs_vgate/IV_nmos.sch
+.include "./bin_0_nch.lib"
+
+.option verbose=1
+
+* Parameter definitions for device dimensions
+.param nf=1
+.param w=1
+.param l=0.15
+
+* Voltage source for gate bias (VGATE)
+VGATE_src net1 GND 0
+
+* MOSFET instance using the defined parameters
+M1 net2 net1 0 0 sky130_fd_pr__nfet_01v8__model_0 L={l} W={w} nf={nf}
++ad={int((nf+1)/2)*w/nf*0.29} as={int((nf+2)/2)*w/nf*0.29}
++pd={2*int((nf+1)/2)*(w/nf+0.29)} ps={2*int((nf+2)/2)*(w/nf+0.29)}
++nrd={0.29/w} nrs={0.29/w} sa=0 sb=0 sd=0 m=1
+
+* Voltage source for the drain (V1) and measurement element
+V1 V1 GND 1.8
+V1_meas V1 net2 0
+
+.save i(V1_meas)
+
+.control
+  save all
+  * Perform DC sweep for VGATE_src from 0 V to 1.8 V in steps of 0.1 V
+  dc VGATE_src 0 1.8 0.1
+  write IV_nmos.raw
+  wrdata IV_nmos.csv I(V1)
+  showmod M1
+.endc
+
+.param mc_mm_switch=0
+.param mc_pr_switch=0
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
+
+.GLOBAL GND
+.end
+
