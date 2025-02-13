@@ -1,9 +1,9 @@
 * Netlist generator
-  - Create netlist pointing to modified model (DONE)
-  - lets start just with NCH	(DONE, pmos started)
+  - Validate methods for PCH netlist generation
 * Simulation of netlist 
-  - lets start just with NCH  (DONE)
-
+  - Validate generated PCH netlist (including name of the generated results)
+* Simulator Class
+  - Start to think 
 
 * Param modification and simulation loop
   - find bin model to be modified (is big bang done for this bin?)
