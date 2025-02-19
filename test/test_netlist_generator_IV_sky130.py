@@ -17,10 +17,10 @@ def main():
     generator = NetlistGeneratorSky130(original_model_file)
 
     # Option 1: Generate netlists by providing a bin number.
-    print("Generating netlists using bin number 0 for NMOS...")
+    print("Generating netlists using bin number 3 for NMOS...")
     netlists_by_bin = generator.generate_iv_netlists(
         device_type='nch',
-        bin_number=0,
+        bin_number=3,
         vgate_start=0,
         vgate_stop=1.8,
         vgate_step=0.1

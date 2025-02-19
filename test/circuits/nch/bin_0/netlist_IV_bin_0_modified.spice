@@ -1,0 +1,43 @@
+.include "./bin_0_nch_modified.lib"
+
+    .option verbose=1
+
+    * IV Simulation netlist for device nch using MODIFIED model
+    * Model: sky130_fd_pr__nfet_01v8__model.0
+    * Parameter definitions for device dimensions
+    .param nf=1
+    .param w=1.26
+    .param l=0.15
+
+    * Voltage source for gate bias (VGATE)
+    VGATE_src net1 GND 0
+
+    * MOSFET instance using the defined parameters
+    M1 net2 net1 0 0 sky130_fd_pr__nfet_01v8__model.0 L=l W=w nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
+    +pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0
+
+    * Voltage source for the drain (V1) and measurement element
+    V1 V1 GND 1.8
+    V1_meas V1 net2 0
+
+    .save i(V1_meas)
+
+    .control
+      save all
+      * Perform DC sweep for VGATE_src from 0 V to 1.8 V in steps of 0.1 V
+      dc VGATE_src 0 1.8 0.1
+      write IV_nmos.raw
+      wrdata IV_nmos.csv I(V1)
+      showmod M1
+    .endc
+
+    .param mc_mm_switch=0
+    .param mc_pr_switch=0
+    .include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
+    .include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+    .include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+    .include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
+
+    .GLOBAL GND
+    .end
+    

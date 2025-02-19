@@ -1,5 +1,3 @@
-* Netlist generator
-  - Validate methods for PCH netlist generation
 * Simulation of netlist 
   - Validate generated PCH netlist (including name of the generated results)
 * Simulator Class
