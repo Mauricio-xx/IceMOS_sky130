@@ -118,8 +118,8 @@ class NetlistGeneratorSky130:
       save all
       * Perform DC sweep for VGATE_src from {vgate_start} V to {vgate_stop} V in steps of {vgate_step} V
       dc VGATE_src {vgate_start} {vgate_stop} {vgate_step}
-      write IV_nmos.raw
-      wrdata IV_nmos.csv I(V1)
+      write IV.raw
+      wrdata IV.csv I(V1)
       showmod M1
     .endc
 

@@ -1,20 +1,22 @@
 # TODO
 
-## Plotter and Data Processing
-- **Create a Plotter Module:**
-  - Develop scripts to format the raw simulation output data.
-  - Implement data processing functions to handle IV and IV_VDS results.
-  - Integrate these scripts into the simulator for automatic plotting of simulation results.
+## Plotting and Data Analysis
+- **IV Simulation Plotting:**
+  - [x] Implement interactive IV plotting using PyQtGraph.
+  - [ ] Develop interactive plotting for IV VDS simulation results.
 
 ## Parameter Modification and Simulation Loop
 - **Automated Parameter Modification:**
-  - Implement functionality to identify the target bin model for modifications.
-    - (e.g., check if "big bang" modifications are already applied for the bin)
-  - Develop a workflow to:
-    - Modify desired parameters.
-    - Save the updated model.
-    - Run the simulation.
-    - Plot and analyze the simulation results.
-    - Loop the process for iterative optimization.
-  - (Optional: Develop a GUI for interactive parameter tuning.)
+  - Find bin model to be modified (verify if modifications have already been applied).
+  - Modify desired parameters, save, simulate, plot, and repeat.
+  - (Optional: Add a GUI for interactive parameter tuning.)
 
+## Netlist Verification
+- **Manual Simulation in xschem:**
+  - Simulate selected transistor circuits in xschem.
+  - Verify that the generated netlists are logically correct.
+  - Document any discrepancies and update netlist generation logic accordingly.
+
+## PMOS Support and Testing
+- Continue refining and validating PMOS (PCH) netlist generation and simulation.
+- Extend test coverage for PMOS scenarios.

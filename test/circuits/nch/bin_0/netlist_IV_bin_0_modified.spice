@@ -26,8 +26,8 @@
       save all
       * Perform DC sweep for VGATE_src from 0 V to 1.8 V in steps of 0.1 V
       dc VGATE_src 0 1.8 0.1
-      write IV_nmos.raw
-      wrdata IV_nmos.csv I(V1)
+      write IV.raw
+      wrdata IV.csv I(V1)
       showmod M1
     .endc
 
