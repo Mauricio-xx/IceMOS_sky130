@@ -1,0 +1,38 @@
+** sch_path: /foss/designs/IceMOS_sky130/circuits/copys_to_develop_pmos/IV_ID_vs_VG.sch
+**.subckt IV_ID_vs_VG
+VGATE net1 VGATE 0
+vdsM VDRAIN GND 0
+.save i(vdsm)
+XM2 VDRAIN VGATE net1 net1 sky130_fd_pr__pfet_01v8 L=0.3 W=0.5 nf=1 ad='int((nf+1)/2) * W/nf * 0.29' as='int((nf+2)/2) * W/nf * 0.29'
++ pd='2*int((nf+1)/2) * (W/nf + 0.29)' ps='2*int((nf+2)/2) * (W/nf + 0.29)' nrd='0.29 / W' nrs='0.29 / W' sa=0 sb=0 sd=0 mult=1 m=1
+VDD net1 GND 1.8
+**** begin user architecture code
+
+
+
+.control
+save all
+op
+  * Barrido de VGATE de 0V a 1.8V en pasos de 0.01V
+
+    dc VGATE 0 1.8 0.01
+    * Guardar los resultados en un archivo
+    wrdata p_mosfet_id_vs_vg.csv I(vdsM)
+    write IV_ID_vs_VG.raw
+
+.endc
+
+
+
+
+.param mc_mm_switch=0
+.param mc_pr_switch=0
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
+
+**** end user architecture code
+**.ends
+.GLOBAL GND
+.end
