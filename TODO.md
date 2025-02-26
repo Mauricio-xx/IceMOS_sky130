@@ -1,5 +1,7 @@
 # TODO
 
+- we need to fix the netlist generation for PMOS based on new xschem netlist's
+
 ## Plotting and Data Analysis
 - **IV Simulation Plotting:**
   - [x] Implement interactive IV plotting using PyQtGraph.
