@@ -1,0 +1,54 @@
+** sch_path: /foss/designs/untitled.sch
+**.subckt untitled
+VGATE net1 VGATE 0
+VSOURCE net1 net2 0
+vdsM net2 VDRAIN 0
+.save i(vdsm)
+XM2 VDRAIN VGATE net1 net1 sky130_fd_pr__pfet_01v8 L=0.15 W=1 nf=1 ad='int((nf+1)/2) * W/nf * 0.29' as='int((nf+2)/2) * W/nf * 0.29'
++ pd='2*int((nf+1)/2) * (W/nf + 0.29)' ps='2*int((nf+2)/2) * (W/nf + 0.29)' nrd='0.29 / W' nrs='0.29 / W' sa=0 sb=0 sd=0 mult=1 m=1
+VDD net1 GND 1.8
+**** begin user architecture code
+
+
+
+*.control
+*save all
+*op
+    * VDS sweep and VGS sweep
+*    dc VDRAIN 0 1.8 0.01 VGATE 0 1.8 0.6
+    * Save the results
+*    wrdata mosfet_vds_vs_is.csv V(VGATE) I(VDRAIN)
+*.endc
+
+
+
+.control
+save all
+op
+  * Barrido de VSG de 0V a 1.8V en pasos de 0.6V
+  foreach vsg 0 0.1 0.2 0.3 0.4 0.5 0.6 1.2 1.8
+    * Cambiar VSG a $vsg
+    alter VGATE dc=$vsg
+    * Barrido de VSD de 0V a 1.8V en pasos de 0.1V
+    dc VSOURCE 0 1.8 0.1
+    * Guardar los resultados en un archivo
+    wrdata p_mosfet_vsd_vs_id_{$vsg}.csv V(VGATE) I(VSOURCE) I(vdsM)
+    write IV_VSD_vs_ID_{$vsg}.raw
+
+  end
+.endc
+
+
+
+
+.param mc_mm_switch=0
+.param mc_pr_switch=0
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
+
+**** end user architecture code
+**.ends
+.GLOBAL GND
+.end

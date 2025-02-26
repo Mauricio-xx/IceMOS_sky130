@@ -1,11 +1,11 @@
 import os
 
 # List of VGS values
-vgs_values = [0, 0.1, 0.2,0.3,0.4,0.5, 0.6, 1.2, 1.8]
+vgs_values = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8]
 
 # Define column names
 # remeber \s\s separator (\s+)
-column_names = "V(VSD)  V(VGS)  V(VSD)  I(ISD)  V(VSD)  I(VSDM)\n"
+column_names = "V(VSD)  V(VG)  V(VSD)  I(ID)  V(VSD)  I(VSDM)\n"
 
 # Function to add headers to a CSV file
 def add_headers(filename, column_names):
@@ -22,7 +22,7 @@ def add_headers(filename, column_names):
 
 # Process each CSV file
 for vgs in vgs_values:
-    filename = f'mosfet_vsd_vs_is_{vgs}.csv'
+    filename = f'p_mosfet_id_vs_vsd_{vgs}.csv'
     if os.path.exists(filename):
         add_headers(filename, column_names)
         print(f"Headers added to {filename}")
