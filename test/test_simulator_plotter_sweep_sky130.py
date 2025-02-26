@@ -18,7 +18,7 @@ def test_iv_vds_plot_nmos():
 
     print("Simulating IV VDS for NMOS using bin number 0:")
     iv_vds_output = simulator.simulate_iv_vds(device_type='nch', bin_number=0,
-                                              vgs_start=0, vgs_stop=1.8, vgs_step=0.6,
+                                              vgs_start=0, vgs_stop=1.8, vgs_step=0.1,
                                               vds_start=0, vds_stop=1.8, vds_step=0.1)
     print(iv_vds_output)
 
@@ -37,7 +37,7 @@ def test_iv_vds_plot_pmos():
 
     print("Simulating IV VDS for PMOS using bin number 10:")
     iv_vds_output = simulator.simulate_iv_vds(device_type='pch', bin_number=10,
-                                              vgs_start=0, vgs_stop=1.8, vgs_step=0.6,
+                                              vgs_start=0, vgs_stop=1.8, vgs_step=0.1,
                                               vds_start=0, vds_stop=1.8, vds_step=0.1)
     print(iv_vds_output)
 
