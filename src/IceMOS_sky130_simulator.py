@@ -191,6 +191,108 @@ class IceMOS_simulator_sky130:
             QtWidgets.QApplication.processEvents()
         return win
 
+    def plot_iv_vds_results_qt(self, device_type, bin_number, csv_folder=None):
+        """
+        Plot the IV VDS simulation results using PyQtGraph in a non-blocking manner.
+
+        This method searches for CSV files in the sweep results folder (default:
+        circuits/<device_type>/bin_<bin_number>/sweep_IV_results). Each CSV file is assumed to be
+        space-delimited with no header and to contain six columns.
+
+        For NMOS (nch), columns are assigned as:
+          ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
+        For PMOS (pch), columns are assigned as:
+          ["V(VSD)", "V(VGS)", "V(VSD)_dup", "I(SD)", "V(VSD)_dup2", "I(VSDM)"]
+
+        The VGS value is extracted from the filename (the text after the last '_' and before '.csv').
+        For each file, the curve of current vs. voltage is plotted:
+          - NMOS: I(VDSM) vs. V(VDS)
+          - PMOS: I(VSDM) vs. V(VSD)
+
+        All curves are added to a single interactive plot with a legend.
+
+        :param device_type: 'nch' for NMOS or 'pch' for PMOS.
+        :param bin_number: The bin number used in the simulation.
+        :param csv_folder: (Optional) Folder where CSV files are located. Defaults to:
+                           circuits/<device_type>/bin_<bin_number>/sweep_IV_results
+        :return: The PyQtGraph window object.
+        """
+        import os
+        import re
+        import pandas as pd
+        import pyqtgraph as pg
+        from PyQt5 import QtWidgets
+        import sys
+
+        device_type = device_type.lower()
+        if csv_folder is None:
+            csv_folder = os.path.join("circuits", device_type, f"bin_{bin_number}", "sweep_IV_results")
+        if not os.path.exists(csv_folder):
+            print(f"CSV folder {csv_folder} not found. Please run the IV VDS simulation first.")
+            return
+
+        csv_files = [f for f in os.listdir(csv_folder) if f.endswith(".csv")]
+        if not csv_files:
+            print(f"No CSV files found in {csv_folder}. Please run the simulation first.")
+            return
+
+        # For NMOS and PMOS, set appropriate column names.
+        if device_type == "nch":
+            col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
+            x_col = "V(VDS)"
+            y_col = "I(VDSM)"
+            plot_title = f"NMOS IV VDS Curves (Bin {bin_number})"
+        else:
+            col_names = ["V(VSD)", "V(VGS)", "V(VSD)_dup", "I(SD)", "V(VSD)_dup2", "I(VSDM)"]
+            x_col = "V(VSD)"
+            y_col = "I(VSDM)"
+            plot_title = f"PMOS IV VDS Curves (Bin {bin_number})"
+
+        # Get or create the QApplication.
+        app = QtWidgets.QApplication.instance()
+        created_app = False
+        if app is None:
+            app = QtWidgets.QApplication(sys.argv)
+            created_app = True
+
+        # Create the PyQtGraph window.
+        win = pg.GraphicsLayoutWidget(title=plot_title)
+        win.resize(800, 600)
+        p = win.addPlot(title=plot_title)
+        p.setLabel('left', y_col)
+        p.setLabel('bottom', x_col)
+        p.showGrid(x=True, y=True)
+        legend = p.addLegend(offset=(10, 10))
+
+        # Process each CSV file.
+        for csv_file in csv_files:
+            # Extract VGS value: text after the last underscore before ".csv"
+            try:
+                vgs_str = csv_file.rsplit('_', 1)[-1].replace('.csv', '')
+            except Exception as e:
+                print(f"Error extracting VGS from {csv_file}: {e}")
+                continue
+
+            csv_path = os.path.join(csv_folder, csv_file)
+            try:
+                df = pd.read_csv(csv_path, sep=r'\s+', header=None)
+                df.columns = col_names
+            except Exception as e:
+                print(f"Error reading CSV file {csv_path}: {e}")
+                continue
+
+            # Plot current vs. voltage.
+            curve = p.plot(df[x_col].values, df[y_col].values,
+                           pen=pg.mkPen(width=2),
+                           symbol='o', symbolSize=5,
+                           name=f"VGS = {vgs_str} V")
+            legend.addItem(curve, f"VGS = {vgs_str} V")
+
+        win.show()
+        if created_app:
+            QtWidgets.QApplication.processEvents()
+        return win
+
 # Example usage:
 # if __name__ == '__main__':
 #     # Path to the original model file (e.g., "sky130_fd_pr__nfet_01v8.pm3.spice")
