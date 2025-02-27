@@ -1,15 +1,15 @@
-.include "./bin_0_nch_original.lib"
+.include "./bin_10_nch_modified.lib"
 
 .option verbose=1
 
-* IV Simulation netlist for device nch using ORIGINAL model
-* Model: sky130_fd_pr__nfet_01v8__model.0
+* IV Simulation netlist for device nch using MODIFIED model
+* Model: sky130_fd_pr__nfet_01v8__model.10
 .param nf=1
-.param w=1.26
+.param w=2.0
 .param l=0.15
 
 VGATE_src net1 GND 0
-M1 net2 net1 0 0 sky130_fd_pr__nfet_01v8__model.0 L=0.15 W=1.26 nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
+M1 net2 net1 0 0 sky130_fd_pr__nfet_01v8__model.10 L=0.15 W=2.0 nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
 +pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0
 V1 V1 GND 1.8
 .save i(V1_meas)

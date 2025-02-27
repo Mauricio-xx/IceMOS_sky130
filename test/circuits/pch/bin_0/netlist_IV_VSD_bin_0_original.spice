@@ -1,0 +1,41 @@
+.include "./bin_0_pch_original.lib"
+
+.option verbose=1
+
+* IV VSD with VG sweep simulation netlist for device pch using ORIGINAL model
+* Model: sky130_fd_pr__pfet_01v8__model.0
+.param nf=1
+.param w=1.26
+.param l=0.15
+
+VGATE net1 VGATE 0
+VSOURCE net1 net2 0
+vdsM VDRAIN net2 0
+.save i(vdsm)
+M2 VDRAIN VGATE net1 net1 sky130_fd_pr__pfet_01v8__model.0 L=0.15 W=1.26 nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
++ pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0 mult=1 m=1
+VDD net1 GND 1.8
+
+.control
+save all
+let vgsval = 0
+let step = 0.6
+while vgsval <= 1.8
+    echo Sweeping VGS = $&vgsval
+    alter VGATE dc=$vgsval
+    dc VSOURCE 0 1.8 0.1
+    wrdata results_IV_ID_vs_VSD_for_VG_sweep/p_mosfet_id_vs_vsd_{$&vgsval}.csv V(VGATE) I(VSOURCE) I(vdsM)
+    write results_IV_ID_vs_VSD_for_VG_sweep/IV_ID_vs_VSD_{$&vgsval}.raw
+    let vgsval = $&vgsval + $&step
+end
+.endc
+
+.param mc_mm_switch=0
+.param mc_pr_switch=0
+.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/spice
+.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
+
+.GLOBAL GND
+.end

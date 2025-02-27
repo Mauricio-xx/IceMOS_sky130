@@ -25,7 +25,7 @@ def test_nmos_qt_nonblocking():
     print(iv_output)
 
     print("Displaying interactive IV plot for NMOS (bin 0) without blocking:")
-    win_nmos = simulator.plot_iv_results_qt(device_type='nch', bin_number=0, csv_filename="IV.csv")
+    win_nmos = simulator.plot_iv_results_qt(device_type='nch', bin_number=0, csv_filename="IV_ID_vs_VG.csv")
     # Keep a reference to the NMOS window to prevent it from being garbage-collected.
     return win_nmos
 
@@ -46,7 +46,7 @@ def test_pmos_qt_nonblocking():
     print(iv_output)
 
     print("Displaying interactive IV plot for PMOS (bin 10) without blocking:")
-    win_pmos = simulator.plot_iv_results_qt(device_type='pch', bin_number=10, csv_filename="IV.csv")
+    win_pmos = simulator.plot_iv_results_qt(device_type='pch', bin_number=10, csv_filename="IV_ID_vs_VG.csv")
     return win_pmos
 
 

@@ -17,10 +17,10 @@ def main():
     generator = NetlistGeneratorSky130(original_model_file)
 
     # Option 1: Generate IV netlists (IDRAIN vs. VGATE) for PMOS using an explicit bin number.
-    print("Generating IV netlists for PMOS using bin number 0...")
+    print("Generating IV netlists for PMOS using bin number 10...")
     netlists_iv = generator.generate_iv_netlists(
         device_type='pch',
-        bin_number=0,
+        bin_number=10,
         vgate_start=0,
         vgate_stop=1.8,
         vgate_step=0.1
@@ -30,19 +30,20 @@ def main():
 
     # Option 2: Generate IV VDS netlists (IDRAIN vs. VDRAIN with VGATE sweep) for PMOS using dimensions.
     print("Generating IV VDS netlists for PMOS using dimensions W=1.26 µm, L=0.15 µm...")
-    netlists_iv_vds = generator.generate_iv_vds_netlists(
+    netlists_iv_vsd = generator.generate_iv_vds_netlists(
         device_type='pch',
         W=1.26,
         L=0.15,
         vgs_start=0,
         vgs_stop=1.8,
         vgs_step=0.6,
-        vds_start=0,
-        vds_stop=1.8,
-        vds_step=0.1
+        vsd_start=0,  # for PMOS we use vsd_start
+        vsd_stop=1.8,  # vsd_stop
+        vsd_step=0.1  # vsd_step
     )
-    print("Generated IV VDS netlists for PMOS:")
-    print(netlists_iv_vds)
+
+    print("Generated IV ID vs VSD for VG sweep netlists for PMOS:")
+    print(netlists_iv_vsd)
 
 
 if __name__ == '__main__':

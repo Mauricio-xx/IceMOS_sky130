@@ -95,7 +95,7 @@ class IceMOS_simulator_sky130:
         print(f"Simulating IV netlist: {netlist_path}")
         return self._simulate_netlist(netlist_path)
     
-    def simulate_iv_vds(self, device_type, bin_number=None, W=None, L=None,
+    def simulate_id_vs_vds_sweep_vg(self, device_type, bin_number=None, W=None, L=None,
                           vgs_start=0, vgs_stop=1.8, vgs_step=0.6,
                           vds_start=0, vds_stop=1.8, vds_step=0.1):
         """
@@ -104,7 +104,7 @@ class IceMOS_simulator_sky130:
         The bin is determined either by an explicit bin number or by the provided transistor dimensions (W, L).
         Always uses the 'modified' netlist.
         
-        :param device_type: 'nch' for NMOS or 'pch' for PMOS.
+        :param device_type: 'nch'.
         :param bin_number: (Optional) The bin number to simulate.
         :param W: (Optional) Transistor width in µm.
         :param L: (Optional) Transistor length in µm.
@@ -124,6 +124,36 @@ class IceMOS_simulator_sky130:
         print(f"Simulating IV VDS netlist: {netlist_path}")
         return self._simulate_netlist(netlist_path)
 
+    def simulate_id_vs_vsd_sweep_vg(self, device_type, bin_number=None, W=None, L=None,
+                        vgs_start=0, vgs_stop=1.8, vgs_step=0.6,
+                        vds_start=0, vds_stop=1.8, vds_step=0.1):
+        """
+        Generate and simulate an IV_VSD netlist (IDRAIN vs. VSOURCE with a VGATE sweep) for the specified device.
+
+        The bin is determined either by an explicit bin number or by the provided transistor dimensions (W, L).
+        Always uses the 'modified' netlist.
+
+        :param device_type: 'pch' for PMOS.
+        :param bin_number: (Optional) The bin number to simulate.
+        :param W: (Optional) Transistor width in µm.
+        :param L: (Optional) Transistor length in µm.
+        :param vgs_start: Starting voltage for the VGS sweep.
+        :param vgs_stop: Ending voltage for the VGS sweep.
+        :param vgs_step: Voltage step for the VGS sweep.
+        :param vsd_start: Starting voltage for the VSD sweep (within the VGS loop).
+        :param vsd_stop: Ending voltage for the VDS sweep.
+        :param vdsdstep: Voltage step for the VSD sweep.
+        :return: The stdout output from the simulation.
+        """
+        netlists = self.generator.generate_iv_vds_netlists(
+            device_type=device_type, bin_number=bin_number, W=W, L=L,
+            vgs_start=vgs_start, vgs_stop=vgs_stop, vgs_step=vgs_step,
+            vsd_start=vds_start, vsd_stop=vds_stop, vsd_step=vds_step)
+        netlist_path = netlists["modified"]
+        print(f"Simulating IV VSD netlist: {netlist_path}")
+        return self._simulate_netlist(netlist_path)
+
+
     def plot_iv_results_qt(self, device_type, bin_number, csv_filename=None):
         """
         Plot the IV simulation results (IDRAIN vs. VGATE) using PyQtGraph for interactive plotting.
@@ -134,7 +164,7 @@ class IceMOS_simulator_sky130:
 
         :param device_type: 'nch' for NMOS or 'pch' for PMOS.
         :param bin_number: The bin number used in the simulation.
-        :param csv_filename: (Optional) CSV filename; defaults to "IV.csv".
+        :param csv_filename: (Optional) CSV filename; defaults to "IV_ID_vs_VG.csv".
         :return: The PyQtGraph window object.
         """
         import pandas as pd
@@ -144,9 +174,9 @@ class IceMOS_simulator_sky130:
 
         device_type = device_type.lower()
         if csv_filename is None:
-            csv_filename = "IV.csv"
+            csv_filename = "IV_ID_vs_VG.csv"
 
-        folder = os.path.join("circuits", device_type, f"bin_{bin_number}")
+        folder = os.path.join("circuits", device_type, f"bin_{bin_number}", "results_IV_ID_vs_VG")
         csv_path = os.path.join(folder, csv_filename)
         if not os.path.exists(csv_path):
             print(f"CSV file {csv_path} not found. Please run the simulation first.")
@@ -163,8 +193,8 @@ class IceMOS_simulator_sky130:
             y_label = "Drain Current (ID)"
             title = f"NMOS IV Curve (Bin {bin_number})"
         else:
-            df.columns = ["VG", "IS"]
-            y_label = "Source Current (IS)"
+            df.columns = ["VG", "ID"]
+            y_label = "Drain Current (ID)"
             title = f"PMOS IV Curve (Bin {bin_number})"
 
         # Get or create the QApplication.
@@ -179,7 +209,8 @@ class IceMOS_simulator_sky130:
         win.resize(800, 600)
         p = win.addPlot(title=title)
         p.setLabel('left', y_label)
-        p.setLabel('bottom', "Gate Voltage (VG)")
+        if device_type == 'nch': p.setLabel('bottom', "Gate Voltage (VGS)")
+        else: p.setLabel('bottom', "Gate Voltage (VSG)")
         p.showGrid(x=True, y=True)
         p.plot(df["VG"].values, df.iloc[:, 1].values,
                pen=pg.mkPen(color='b', width=2),
@@ -226,7 +257,8 @@ class IceMOS_simulator_sky130:
 
         device_type = device_type.lower()
         if csv_folder is None:
-            csv_folder = os.path.join("circuits", device_type, f"bin_{bin_number}", "sweep_IV_results")
+            if device_type == 'nch': folder = os.path.join("circuits", device_type, f"bin_{bin_number}", "results_IV_ID_vs_VDS_for_VG_sweep")
+            else: folder = os.path.join("circuits", device_type, f"bin_{bin_number}", "results_IV_ID_vs_VSD_for_VG_sweep")
         if not os.path.exists(csv_folder):
             print(f"CSV folder {csv_folder} not found. Please run the IV VDS simulation first.")
             return
@@ -239,14 +271,14 @@ class IceMOS_simulator_sky130:
         # For NMOS and PMOS, set appropriate column names.
         if device_type == "nch":
             col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
-            x_col = "V(VDS)"
-            y_col = "I(VDSM)"
-            plot_title = f"NMOS IV VDS Curves (Bin {bin_number})"
+            x_col = "VDS"
+            y_col = "ID"
+            plot_title = f"NMOS ID vs VDS Curves (Bin {bin_number})"
         else:
-            col_names = ["V(VSD)", "V(VGS)", "V(VSD)_dup", "I(SD)", "V(VSD)_dup2", "I(VSDM)"]
-            x_col = "V(VSD)"
-            y_col = "I(VSDM)"
-            plot_title = f"PMOS IV VDS Curves (Bin {bin_number})"
+            col_names = ["V(VSD)" , "V(VG)", "V(VSD)", "I(ID)", "V(VSD)", "I(VSDM)"]
+            x_col = "VSD"
+            y_col = "ID"
+            plot_title = f"PMOS ID vs VSD Curves (Bin {bin_number})"
 
         # Get or create the QApplication.
         app = QtWidgets.QApplication.instance()
@@ -282,11 +314,13 @@ class IceMOS_simulator_sky130:
                 continue
 
             # Plot current vs. voltage.
+            if device_type == 'nch': plot_name = f"VGS = {vgs_str} V"
+            else: plot_name = f"VSG = {vgs_str} V"
             curve = p.plot(df[x_col].values, df[y_col].values,
                            pen=pg.mkPen(width=2),
                            symbol='o', symbolSize=5,
-                           name=f"VGS = {vgs_str} V")
-            legend.addItem(curve, f"VGS = {vgs_str} V")
+                           name=plot_name)
+            legend.addItem(curve, plot_name)
 
         win.show()
         if created_app:

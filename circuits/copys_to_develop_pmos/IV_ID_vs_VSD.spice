@@ -11,16 +11,6 @@ VDD net1 GND 1.8
 
 
 
-*.control
-*save all
-*op
-    * VDS sweep and VGS sweep
-*    dc VDRAIN 0 1.8 0.01 VGATE 0 1.8 0.6
-    * Save the results
-*    wrdata mosfet_vds_vs_is.csv V(VGATE) I(VDRAIN)
-*.endc
-
-
 .control
 save all
 op
