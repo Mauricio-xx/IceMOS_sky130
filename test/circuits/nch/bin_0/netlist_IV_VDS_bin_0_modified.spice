@@ -19,23 +19,24 @@ vdsM VDS net1 0
 .control
 save all
 let vgsval = 0
-let step = 0.6
+let step = 0.1
 while vgsval <= 1.8
     echo Sweeping VGS = $&vgsval
     alter VGATE = $&vgsval
     dc VDRAIN 0 1.8 0.1
-    wrdata results_IV_ID_vs_VDS_for_VG_sweep/n_mosfet_id_vs_vsd_{$&vgsval}.csv V(VDS) I(VDRAIN) I(VDSM)
+    wrdata results_IV_IDS_vs_VDS_for_VG_sweep/n_mosfet_id_vs_vsd_{$&vgsval}.csv V(VDS) I(VDRAIN) I(VDSM)
+    write results_IV_IDS_vs_VDS_for_VG_sweep/n_mosfet_id_vs_vsd_{$&vgsval}.raw
     let vgsval = $&vgsval + $&step
 end
-write results_IV_ID_vs_VDS_for_VG_sweep/IV_IDS_vs_VDS.raw
+
 .endc
+
 
 .param mc_mm_switch=0
 .param mc_pr_switch=0
-.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/spice
-.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
-.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
-.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
-
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
 .GLOBAL GND
 .end

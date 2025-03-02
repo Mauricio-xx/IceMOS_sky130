@@ -57,6 +57,8 @@ class NetlistGeneratorSky130:
             M1 net2 net1 0 0 {model_name} L=l W=w nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
             +pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0
             V1 V1 GND 1.8
+            V1_meas V1 net2 0
+
             .save i(V1_meas)
             .control
               save all
@@ -138,13 +140,14 @@ VGATE_src net1 GND 0
 M1 net2 net1 0 0 {model_name} L={L_val} W={W_val} nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
 +pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0
 V1 V1 GND 1.8
+V1_meas V1 net2 0
 .save i(V1_meas)
 
 .control
   save all
   dc VGATE_src {vgate_start} {vgate_stop} {vgate_step}
   write results_IV_ID_vs_VG/IV_ID_vs_VG.raw
-  wrdata results_IV_ID_vs_VG/IV_ID_vs_VG.csv I(V1)
+  wrdata results_IV_ID_vs_VG/IV_ID_vs_VG.csv I(V1_meas)
   *showmod M1
 .endc
 
@@ -335,19 +338,20 @@ while vgsval <= {vgs_stop}
     echo Sweeping VGS = $&vgsval
     alter VGATE = $&vgsval
     dc VDRAIN {vds_start} {vds_stop} {vds_step}
-    wrdata results_IV_ID_vs_VDS_for_VG_sweep/{vds_prefix}{{$&vgsval}}.csv V(VDS) I(VDRAIN) I(VDSM)
+    wrdata results_IV_IDS_vs_VDS_for_VG_sweep/{vds_prefix}{{$&vgsval}}.csv V(VDS) I(VDRAIN) I(VDSM)
+    write results_IV_IDS_vs_VDS_for_VG_sweep/{vds_prefix}{{$&vgsval}}.raw
     let vgsval = $&vgsval + $&step
 end
-write results_IV_ID_vs_VDS_for_VG_sweep/IV_IDS_vs_VDS.raw
+
 .endc
+
 
 .param mc_mm_switch=0
 .param mc_pr_switch=0
-.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/spice
-.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
-.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
-.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
-
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
 .GLOBAL GND
 .end
 """
@@ -384,19 +388,18 @@ while vgsval <= {vgs_stop}
     echo Sweeping VGS = $&vgsval
     alter VGATE dc=$vgsval
     dc VSOURCE {vsd_start} {vsd_stop} {vsd_step}
-    wrdata results_IV_ID_vs_VSD_for_VG_sweep/{vds_prefix}{{$&vgsval}}.csv V(VGATE) I(VSOURCE) I(vdsM)
-    write results_IV_ID_vs_VSD_for_VG_sweep/IV_ID_vs_VSD_{{$&vgsval}}.raw
+    wrdata results_IV_ISD_vs_VSD_for_VG_sweep/{vds_prefix}{{$&vgsval}}.csv V(VGATE) I(VSOURCE) I(vdsM)
+    write results_IV_ISD_vs_VSD_for_VG_sweep/{vds_prefix}{{$&vgsval}}.raw
     let vgsval = $&vgsval + $&step
 end
 .endc
 
 .param mc_mm_switch=0
 .param mc_pr_switch=0
-.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/spice
-.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
-.include /foss/designs/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
-.include /foss/designs/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
-
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
 .GLOBAL GND
 .end
 """
@@ -465,8 +468,8 @@ end
 
         # results dir will be different for or nmos
 
-        if device_type == 'nch': results_vds_dir = os.path.join(output_dir, "results_IV_ID_vs_VDS_for_VG_sweep")
-        else: results_vds_dir = os.path.join(output_dir, "results_IV_ID_vs_VSD_for_VG_sweep")
+        if device_type == 'nch': results_vds_dir = os.path.join(output_dir, "results_IV_IDS_vs_VDS_for_VG_sweep")
+        else: results_vds_dir = os.path.join(output_dir, "results_IV_ISD_vs_VSD_for_VG_sweep")
         os.makedirs(results_vds_dir, exist_ok=True)
 
         if device_type == 'nch':
