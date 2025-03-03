@@ -271,7 +271,7 @@ op
 
     def generate_iv_vds_netlists(self, device_type, bin_number=None, W=None, L=None,
                                  vgs_start=0, vgs_stop=1.8, vgs_step=0.6,
-                                 vds_start=0, vds_stop=1.8, vds_step=1.0,
+                                 vds_start=0, vds_stop=1.8, vds_step=1.0,   # todo: extend to vsg
                                  vsd_start=None, vsd_stop=None, vsd_step=None):
         """
         Generates IV VDS simulation netlists for the specified device.
@@ -377,7 +377,7 @@ VSOURCE net1 net2 0
 vdsM VDRAIN net2 0
 .save i(vdsm)
 M2 VDRAIN VGATE net1 net1 {model_name} L={L_val} W={W_val} nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
-+ pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0 mult=1 m=1
++ pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0 m=1
 VDD net1 GND 1.8
 
 .control
@@ -386,7 +386,7 @@ let vgsval = {vgs_start}
 let step = {vgs_step}
 while vgsval <= {vgs_stop}
     echo Sweeping VGS = $&vgsval
-    alter VGATE dc=$vgsval
+    alter VGATE dc=$&vgsval
     dc VSOURCE {vsd_start} {vsd_stop} {vsd_step}
     wrdata results_IV_ISD_vs_VSD_for_VG_sweep/{vds_prefix}{{$&vgsval}}.csv V(VGATE) I(VSOURCE) I(vdsM)
     write results_IV_ISD_vs_VSD_for_VG_sweep/{vds_prefix}{{$&vgsval}}.raw

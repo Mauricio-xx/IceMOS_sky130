@@ -13,7 +13,7 @@ VSOURCE net1 net2 0
 vdsM VDRAIN net2 0
 .save i(vdsm)
 M2 VDRAIN VGATE net1 net1 sky130_fd_pr__pfet_01v8__model.10 L=0.15 W=2.0 nf=1 ad='int((nf+1)/2)*W/nf*0.29' as='int((nf+2)/2)*W/nf*0.29'
-+ pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0 mult=1 m=1
++ pd='2*int((nf+1)/2)*(W/nf+0.29)' ps='2*int((nf+2)/2)*(W/nf+0.29)' nrd='0.29/W' nrs='0.29/W' sa=0 sb=0 sd=0 m=1
 VDD net1 GND 1.8
 
 .control
@@ -22,10 +22,10 @@ let vgsval = 0
 let step = 0.1
 while vgsval <= 1.8
     echo Sweeping VGS = $&vgsval
-    alter VGATE dc=$vgsval
+    alter VGATE dc=$&vgsval
     dc VSOURCE 0 1.8 0.1
     wrdata results_IV_ISD_vs_VSD_for_VG_sweep/p_mosfet_id_vs_vsd_{$&vgsval}.csv V(VGATE) I(VSOURCE) I(vdsM)
-    write results_IV_ISD_vs_VSD_for_VG_sweep/IV_ID_vs_VSD_{$&vgsval}.raw
+    write results_IV_ISD_vs_VSD_for_VG_sweep/p_mosfet_id_vs_vsd_{$&vgsval}.raw
     let vgsval = $&vgsval + $&step
 end
 .endc

@@ -126,7 +126,7 @@ class IceMOS_simulator_sky130:
 
 ## TODO: fix vgs for vsg
     def simulate_id_vs_vsd_sweep_vg(self, device_type, bin_number=None, W=None, L=None,
-                        vsg_start=0, vsg_stop=1.8, vsg_step=0.6,
+                        vsg_start=0, vsg_stop=1.8, vsg_step=0.2,
                         vsd_start=0, vsd_stop=1.8, vsd_step=0.1):
         """
         Generate and simulate an IV_VSD netlist (IDRAIN vs. VSOURCE with a VGATE sweep) for the specified device.
@@ -265,6 +265,7 @@ class IceMOS_simulator_sky130:
             return
 
         csv_files = [f for f in os.listdir(csv_folder) if f.endswith(".csv")]
+        csv_files.sort()
         if not csv_files:
             print(f"No CSV files found in {csv_folder}. Please run the simulation first.")
             return
@@ -272,13 +273,13 @@ class IceMOS_simulator_sky130:
         # For NMOS and PMOS, set appropriate column names.
         if device_type == "nch":
             col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
-            x_col = "VDS"
-            y_col = "IDS"
+            x_col = "V(VDS)"
+            y_col = "I(VDSM)"
             plot_title = f"NMOS IDS vs VDS Curves (Bin {bin_number})"
         else:
-            col_names = ["V(VSD)" , "V(VG)", "V(VSD)", "I(ID)", "V(VSD)", "I(VSDM)"]
-            x_col = "VSD"
-            y_col = "ISD"
+            col_names = ["V(VSD)", "V(VG)", "V(VSD)_dup", "I(ISD)", "V(VSD)_dup", "I(VSDM)"]
+            x_col = "V(VSD)"
+            y_col = "I(VSDM)"
             plot_title = f"PMOS ISD vs VSD Curves (Bin {bin_number})"
 
         # Get or create the QApplication.
@@ -310,6 +311,14 @@ class IceMOS_simulator_sky130:
             try:
                 df = pd.read_csv(csv_path, sep=r'\s+', header=None)
                 df.columns = col_names
+                # print("------------------------------------")
+                # print("")
+                # print(col_names)
+                # print("")
+                # print("------------------------------------")
+                # print(df[x_col].values)
+                # print("------------------------------------")
+                # print(df[y_col].values)
             except Exception as e:
                 print(f"Error reading CSV file {csv_path}: {e}")
                 continue
@@ -319,32 +328,10 @@ class IceMOS_simulator_sky130:
             else: plot_name = f"VSG = {vgs_str} V"
             curve = p.plot(df[x_col].values, df[y_col].values,
                            pen=pg.mkPen(width=2),
-                           symbol='o', symbolSize=5,
-                           name=plot_name)
+                           symbol='o', symbolSize=5)
             legend.addItem(curve, plot_name)
 
         win.show()
         if created_app:
             QtWidgets.QApplication.processEvents()
         return win
-
-# Example usage:
-# if __name__ == '__main__':
-#     # Path to the original model file (e.g., "sky130_fd_pr__nfet_01v8.pm3.spice")
-#     original_model_file = "sky130_fd_pr__nfet_01v8.pm3.spice"
-#
-#     # Create an instance of the simulator.
-#     simulator = IceMOS_simulator_sky130(original_model_file)
-#
-#     # Example 1: Simulate IV for NMOS using a specific bin number.
-#     print("Simulating IV for NMOS using bin number 0:")
-#     iv_output = simulator.simulate_iv(device_type='nch', bin_number=0,
-#                                       vgate_start=0, vgate_stop=1.8, vgate_step=0.1)
-#     print(iv_output)
-#
-#     # Example 2: Simulate IV VDS for NMOS using dimensions (W=1.26 µm, L=0.15 µm)
-#     print("Simulating IV VDS for NMOS using dimensions W=1.26 µm, L=0.15 µm:")
-#     iv_vds_output = simulator.simulate_iv_vds(device_type='nch', W=1.26, L=0.15,
-#                                               vgs_start=0, vgs_stop=1.8, vgs_step=0.6,
-#                                               vds_start=0, vds_stop=1.8, vds_step=0.1)
-#     print(iv_vds_output)
