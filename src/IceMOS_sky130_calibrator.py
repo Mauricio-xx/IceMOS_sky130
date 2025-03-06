@@ -127,9 +127,177 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             QLineEdit, QSpinBox, QDoubleSpinBox, QSlider, QPushButton { background-color: #3c3c3c; }
         """)
 
+    def sync_parameter_ui(self, param):
+        """
+        Recompute the slider's range and update controls based on the parameter's
+        stored (value, min, max). This method is called after any update.
+        It updates only the controls for the given parameter, then forces a repaint.
+        """
+        DESIRED_INT_RANGE = 100_000
+        EPSILON = 1e-18
+
+        if param not in self.controls:
+            return
+        # Unpack the eight controls (order: slider, displayCurrent, minEdit, maxEdit, manualCurrentEdit, setMinBtn, setMaxBtn, setCurrentBtn)
+        slider, displayCurrent, minEdit, maxEdit, manualCurrentEdit, _, _, _ = self.controls[param]
+
+        # 1. Retrieve min and max from their spin boxes.
+        new_min = minEdit.value()
+        new_max = maxEdit.value()
+        if new_min > new_max:
+            new_min, new_max = new_max, new_min
+            minEdit.blockSignals(True)
+            maxEdit.blockSignals(True)
+            minEdit.setValue(new_min)
+            maxEdit.setValue(new_max)
+            minEdit.blockSignals(False)
+            maxEdit.blockSignals(False)
+
+        # 2. Compute the range; if it's nearly zero, use a fallback range.
+        rng = new_max - new_min
+        if abs(rng) < 1e-30:
+            new_min, new_max = -1e-9, 1e-9
+            rng = new_max - new_min
+            minEdit.blockSignals(True)
+            maxEdit.blockSignals(True)
+            minEdit.setValue(new_min)
+            maxEdit.setValue(new_max)
+            minEdit.blockSignals(False)
+            maxEdit.blockSignals(False)
+
+        # 3. Compute the scale factor for mapping float range to slider integers.
+        scale = DESIRED_INT_RANGE / rng
+        MAX_INT = 2147483647
+        largest_abs = max(abs(new_min), abs(new_max))
+        if largest_abs < EPSILON:
+            largest_abs = 1e-9
+        if (new_max * scale) > MAX_INT or (new_min * scale) < -MAX_INT:
+            scale = 0.9 * MAX_INT / largest_abs
+
+        # 4. Get the current value from the parameter dictionary and clamp it.
+        cur_val = self.parameters[param]["value"]
+        if cur_val < new_min:
+            cur_val = new_min
+        elif cur_val > new_max:
+            cur_val = new_max
+
+        # 5. Block signals and update the slider and display.
+        slider.blockSignals(True)
+        displayCurrent.blockSignals(True)
+
+        # Use round with floor/ceil for the slider endpoints:
+        slider.setMinimum(math.floor(new_min * scale) - 1)
+        slider.setMaximum(math.ceil(new_max * scale) + 1)
+        slider.setValue(round(cur_val * scale))
+        displayCurrent.setText(f"{cur_val:.6g}")
+
+        slider.blockSignals(False)
+        displayCurrent.blockSignals(False)
+
+        # 6. Update the parameter dictionary.
+        self.parameters[param]["min"] = new_min
+        self.parameters[param]["max"] = new_max
+        self.parameters[param]["value"] = cur_val
+
+        # 7. Force a repaint of the slider asynchronously so the new limits are applied.
+        QtCore.QTimer.singleShot(0, slider.update)
+
+    import math
+    from PyQt5 import QtWidgets
+
+    def update_slider_range(self, param):
+        desired_int_range = 100_000
+        if param not in self.controls:
+            return
+        slider, spin, minSpin, maxSpin, manualEdit = self.controls[param]
+
+        # 1. Get new min and max from their spin boxes; swap if reversed.
+        new_min = minSpin.value()
+        new_max = maxSpin.value()
+        if new_min > new_max:
+            new_min, new_max = new_max, new_min
+            minSpin.blockSignals(True)
+            maxSpin.blockSignals(True)
+            minSpin.setValue(new_min)
+            maxSpin.setValue(new_max)
+            minSpin.blockSignals(False)
+            maxSpin.blockSignals(False)
+
+        # 2. Compute the float range; if too small, use a fallback range.
+        rng = new_max - new_min
+        if abs(rng) < 1e-30:
+            new_min, new_max = -1e-9, 1e-9
+            rng = new_max - new_min
+            minSpin.blockSignals(True)
+            maxSpin.blockSignals(True)
+            minSpin.setValue(new_min)
+            maxSpin.setValue(new_max)
+            minSpin.blockSignals(False)
+            maxSpin.blockSignals(False)
+
+        # 3. Calculate the scale factor mapping float range to integer range.
+        scale = desired_int_range / rng
+        MAX_INT = 2147483647
+        largest_abs = max(abs(new_min), abs(new_max))
+        if largest_abs < 1e-18:
+            largest_abs = 1e-9
+        if (new_max * scale) > MAX_INT or (new_min * scale) < -MAX_INT:
+            scale = 0.9 * MAX_INT / largest_abs
+
+        # 4. Clamp the current value from the data model.
+        cur_val = self.parameters[param]["value"]
+        if cur_val < new_min:
+            cur_val = new_min
+        elif cur_val > new_max:
+            cur_val = new_max
+
+        # 5. Block signals and update slider/spin ranges.
+        slider.blockSignals(True)
+        spin.blockSignals(True)
+        # Use floor for min and ceil for max to ensure extremes are reachable.
+        slider.setMinimum(math.floor(new_min * scale))
+        slider.setMaximum(math.ceil(new_max * scale))
+        slider.setValue(round(cur_val * scale))
+        spin.setRange(new_min, new_max)
+        spin.setValue(cur_val)
+
+        # 6. Adjust step sizes (e.g. ~1% for single step, ~10% for page step).
+        int_range = slider.maximum() - slider.minimum()
+        if int_range > 0:
+            slider.setSingleStep(max(1, int_range // 100))
+            slider.setPageStep(max(1, int_range // 10))
+        else:
+            slider.setSingleStep(1)
+            slider.setPageStep(1)
+
+        slider.blockSignals(False)
+        spin.blockSignals(False)
+
+        # 7. Update the parameter dictionary.
+        self.parameters[param]["min"] = new_min
+        self.parameters[param]["max"] = new_max
+        self.parameters[param]["value"] = cur_val
+
+        # 8. Force the slider to repaint and process events.
+        slider.repaint()
+        QtWidgets.QApplication.processEvents()
+
+    def set_min_value(self, param, new_min):
+        if param in self.parameters:
+            self.parameters[param]["min"] = new_min
+        if param in self.controls:
+            # Refresh the slider and other controls for this parameter
+            self.sync_parameter_ui(param)
+
+    def set_max_value(self, param, new_max):
+        if param in self.parameters:
+            self.parameters[param]["max"] = new_max
+        if param in self.controls:
+            self.sync_parameter_ui(param)
+
     def populate_parameters(self):
         EPSILON = 1e-18
-        desired_int_range = 1e6
+        desired_int_range = 100_000
 
         while self.form_layout.count():
             child = self.form_layout.takeAt(0)
@@ -146,16 +314,20 @@ class ParameterTunerWindow(QtWidgets.QWidget):
 
             current = float(values["value"])
 
-            # Retrieve default_val from default_parameters if available
+            # Retrieve default value from default_parameters if available
             if param in self.default_parameters and isinstance(self.default_parameters[param], dict):
                 default_val = float(self.default_parameters[param]["value"])
             else:
                 default_val = current
 
-            # Only compute min/max if not already set
+            # Compute min and max if not already set:
             if "min" not in values or "max" not in values:
-                if abs(default_val) < EPSILON:
-                    # For near-zero defaults, define a small range around zero
+                if default_val == 0.0:
+                    # If the default is exactly zero, set a fixed range [-1, 1]
+                    min_val = -1.0
+                    max_val = 1.0
+                elif abs(default_val) < EPSILON:
+                    # For near-zero values (but not exactly zero), use a very small range.
                     offset = 1e-9
                     min_val = -offset
                     max_val = offset
@@ -170,14 +342,16 @@ class ParameterTunerWindow(QtWidgets.QWidget):
                 min_val = float(values["min"])
                 max_val = float(values["max"])
 
+            # Compute initial scale factor for the slider range
             range_width = max_val - min_val
             scale = 1e6 if range_width == 0 else desired_int_range / range_width
 
             slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-            slider.setMinimum(int(min_val * scale))
-            slider.setMaximum(int(max_val * scale))
-            slider.setValue(int(current * scale))
-            tick_interval = (int(max_val * scale) - int(min_val * scale)) // 10
+            # Use round() to include endpoints properly.
+            slider.setMinimum(round(min_val * scale))
+            slider.setMaximum(round(max_val * scale))
+            slider.setValue(round(current * scale))
+            tick_interval = (round(max_val * scale) - round(min_val * scale)) // 10
             slider.setTickInterval(tick_interval if tick_interval > 0 else 1)
             slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
 
@@ -185,69 +359,142 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             spin.setRange(min_val, max_val)
             spin.setDecimals(6)
             spin.setValue(current)
+            # Make spin read-only (current value display)
+            spin.setReadOnly(True)
+            spin.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
 
-            minSpin = QtWidgets.QDoubleSpinBox()
-            minSpin.setRange(-1e20, 1e9)
-            minSpin.setDecimals(8)
-            minSpin.setValue(min_val)
-            maxSpin = QtWidgets.QDoubleSpinBox()
-            maxSpin.setRange(-1e20, 1e9)
-            maxSpin.setDecimals(8)
-            maxSpin.setValue(max_val)
+            # Create spin boxes for editing min and max values
+            minEdit = QtWidgets.QDoubleSpinBox()
+            minEdit.setRange(-1e20, 1e9)
+            minEdit.setDecimals(8)
+            minEdit.setValue(min_val)
 
-            # Manual entry field for current value
-            manualEdit = QtWidgets.QLineEdit()
-            manualEdit.setFixedWidth(80)
-            manualEdit.setText(f"{current:.6g}")
-            manualLabel = QtWidgets.QLabel("Manual:")
+            maxEdit = QtWidgets.QDoubleSpinBox()
+            maxEdit.setRange(-1e20, 1e9)
+            maxEdit.setDecimals(8)
+            maxEdit.setValue(max_val)
 
-            # Define helper function for updating slider range for this parameter.
-            # Define helper function for updating slider range for this parameter.
-            def update_slider_range(param, slider, spin, minSpin, maxSpin):
-                new_min = minSpin.value()
-                new_max = maxSpin.value()
-                new_range = new_max - new_min
-                new_scale = 1e6 if new_range == 0 else desired_int_range / new_range
+            # Create buttons to apply the new min and max
+            setMinBtn = QtWidgets.QPushButton("Set Min")
+            setMaxBtn = QtWidgets.QPushButton("Set Max")
 
-                slider.blockSignals(True)
-                spin.blockSignals(True)
-                slider.setMinimum(int(new_min * new_scale))
-                slider.setMaximum(int(new_max * new_scale))
-                spin.setRange(new_min, new_max)
-                current_val = spin.value()
-                if current_val < new_min:
-                    current_val = new_min
-                elif current_val > new_max:
-                    current_val = new_max
-                spin.setValue(current_val)
-                slider.setValue(int(current_val * new_scale))
-                slider.blockSignals(False)
-                spin.blockSignals(False)
-                self.parameters[param]["min"] = new_min
-                self.parameters[param]["max"] = new_max
+            # Create a QLineEdit for manual current value entry and a button to apply it.
+            manualCurrentEdit = QtWidgets.QLineEdit()
+            manualCurrentEdit.setFixedWidth(80)
+            manualCurrentEdit.setText(f"{current:.6g}")
+            setCurrentBtn = QtWidgets.QPushButton("Set Current")
 
-            minSpin.valueChanged.connect(lambda _: update_slider_range(param, slider, spin, minSpin, maxSpin))
-            maxSpin.valueChanged.connect(lambda _: update_slider_range(param, slider, spin, minSpin, maxSpin))
+            # Connect the "Set" buttons:
+            setMinBtn.clicked.connect(lambda _, p=param, val=minEdit.value(): self.set_min_value(p, val))
+            setMaxBtn.clicked.connect(lambda _, p=param, val=maxEdit.value(): self.set_max_value(p, val))
+            setCurrentBtn.clicked.connect(
+                lambda _, p=param, edit=manualCurrentEdit: self.update_parameter_from_text(p, edit.text()))
 
+            # Connect slider changes to update the read-only spin display and parameter value.
             slider.valueChanged.connect(lambda val, s=spin, sc=scale: s.setValue(val / sc))
-            spin.valueChanged.connect(lambda val, s=slider, sc=scale: s.setValue(int(val * sc)))
-            spin.valueChanged.connect(lambda val, key=param: self.update_parameter(key, val))
-            manualEdit.editingFinished.connect(
-                lambda key=param, edit=manualEdit: self.update_parameter_from_text(key, edit.text()))
+            slider.valueChanged.connect(lambda val, key=param, sc=scale: self.update_parameter(key, val / sc))
 
             container = QtWidgets.QWidget()
             h_layout = QtWidgets.QHBoxLayout(container)
+            # Order: Slider | current display (spin) | minEdit | Set Min | maxEdit | Set Max | manualCurrentEdit | Set Current
             h_layout.addWidget(slider)
             h_layout.addWidget(spin)
             h_layout.addWidget(QtWidgets.QLabel("Min:"))
-            h_layout.addWidget(minSpin)
+            h_layout.addWidget(minEdit)
+            h_layout.addWidget(setMinBtn)
             h_layout.addWidget(QtWidgets.QLabel("Max:"))
-            h_layout.addWidget(maxSpin)
-            h_layout.addWidget(manualLabel)
-            h_layout.addWidget(manualEdit)
+            h_layout.addWidget(maxEdit)
+            h_layout.addWidget(setMaxBtn)
+            h_layout.addWidget(manualCurrentEdit)
+            h_layout.addWidget(setCurrentBtn)
             h_layout.setContentsMargins(0, 0, 0, 0)
             self.form_layout.addRow(param, container)
-            self.controls[param] = (slider, spin, minSpin, maxSpin, manualEdit)
+            self.controls[param] = (
+            slider, spin, minEdit, maxEdit, manualCurrentEdit, setMinBtn, setMaxBtn, setCurrentBtn)
+
+            #self.sync_parameter_ui(param)
+
+    def sync_parameter_ui(self, param):
+        """
+        Recompute the slider's range and update controls based on the parameter's
+        stored (value, min, max). This method is called after any update.
+        """
+        DESIRED_INT_RANGE = 100_000
+        EPSILON = 1e-18
+
+        if param not in self.controls:
+            return
+        # Note: our controls tuple now has 8 items.
+        slider, spin, minEdit, maxEdit, manualCurrentEdit, _, _, _ = self.controls[param]
+
+        new_min = minEdit.value()
+        new_max = maxEdit.value()
+        if new_min > new_max:
+            new_min, new_max = new_max, new_min
+            minEdit.blockSignals(True)
+            maxEdit.blockSignals(True)
+            minEdit.setValue(new_min)
+            maxEdit.setValue(new_max)
+            minEdit.blockSignals(False)
+            maxEdit.blockSignals(False)
+
+        rng = new_max - new_min
+        if abs(rng) < 1e-30:
+            new_min, new_max = -1e-9, 1e-9
+            rng = new_max - new_min
+            minEdit.blockSignals(True)
+            maxEdit.blockSignals(True)
+            minEdit.setValue(new_min)
+            maxEdit.setValue(new_max)
+            minEdit.blockSignals(False)
+            maxEdit.blockSignals(False)
+
+        scale = DESIRED_INT_RANGE / rng
+        MAX_INT = 2147483647
+        largest_abs = max(abs(new_min), abs(new_max))
+        if largest_abs < EPSILON:
+            largest_abs = 1e-9
+        if (new_max * scale) > MAX_INT or (new_min * scale) < -MAX_INT:
+            scale = 0.9 * MAX_INT / largest_abs
+
+        # Clamp the current value from the parameter dictionary.
+        cur_val = self.parameters[param]["value"]
+        if cur_val < new_min:
+            cur_val = new_min
+        elif cur_val > new_max:
+            cur_val = new_max
+
+        slider.blockSignals(True)
+        spin.blockSignals(True)
+
+        slider.setMinimum(round(new_min * scale))
+        slider.setMaximum(round(new_max * scale))
+        slider.setValue(round(cur_val * scale))
+        spin.setRange(new_min, new_max)
+        spin.setValue(cur_val)
+
+        # Optionally set singleStep/pageStep based on the integer range.
+        int_range = slider.maximum() - slider.minimum()
+        if int_range > 0:
+            slider.setSingleStep(max(1, int_range // 100))
+            slider.setPageStep(max(1, int_range // 10))
+        else:
+            slider.setSingleStep(1)
+            slider.setPageStep(1)
+
+        slider.blockSignals(False)
+        spin.blockSignals(False)
+
+        self.parameters[param]["min"] = new_min
+        self.parameters[param]["max"] = new_max
+        self.parameters[param]["value"] = cur_val
+
+        
+
+    def spin_changed(self, param, val):
+        # user changed the spin box => store val, then re-sync
+        self.parameters[param]["value"] = val
+        self.sync_parameter_ui(param)
 
     def update_parameter(self, param, value):
         self.parameters[param] = {"value": value,
@@ -256,63 +503,16 @@ class ParameterTunerWindow(QtWidgets.QWidget):
         print(f"{param} updated to {value}")
 
     def update_parameter_from_text(self, param, text):
-        desired_int_range = 1e6  # desired integer range for slider mapping
         try:
             new_val = float(text)
         except ValueError:
             QtWidgets.QMessageBox.warning(self, "Invalid Input", f"'{text}' is not a valid number for {param}.")
             return
-
-        # Retrieve controls for the parameter.
         if param not in self.controls:
             return
-        slider, spin, minSpin, maxSpin, manualEdit = self.controls[param]
-
-        # Get the current min and max values from the spin boxes.
-        current_min = minSpin.value()
-        current_max = maxSpin.value()
-
-        # If new_val is less than current_min, update minSpin.
-        if new_val < current_min:
-            current_min = new_val
-            minSpin.blockSignals(True)
-            minSpin.setValue(new_val)
-            minSpin.blockSignals(False)
-        # If new_val is greater than current_max, update maxSpin.
-        if new_val > current_max:
-            current_max = new_val
-            maxSpin.blockSignals(True)
-            maxSpin.setValue(new_val)
-            maxSpin.blockSignals(False)
-
-        # Update the parameter dictionary.
         self.parameters[param]["value"] = new_val
-        self.parameters[param]["min"] = current_min
-        self.parameters[param]["max"] = current_max
-
-        # Recalculate the range and the new scaling factor.
-        new_range = current_max - current_min
-        new_scale = 1e6 if new_range == 0 else desired_int_range / new_range
-
-        # Update the current value spin box.
-        spin.blockSignals(True)
-        spin.setRange(current_min, current_max)
-        spin.setValue(new_val)
-        spin.blockSignals(False)
-
-        # Update the slider's range and value using the new scale.
-        slider.blockSignals(True)
-        slider.setMinimum(int(current_min * new_scale))
-        slider.setMaximum(int(current_max * new_scale))
-        try:
-            slider.setValue(int(new_val * new_scale))
-        except OverflowError:
-            QtWidgets.QMessageBox.warning(self, "Overflow Error", f"Calculated slider value is too large for {param}.")
-            slider.setValue(slider.maximum())
-        slider.blockSignals(False)
-
-        # Update the manual edit text to reflect the new value.
-        manualEdit.setText(f"{new_val:.6g}")
+        # Call sync_parameter_ui to update only this parameter's controls.
+        self.sync_parameter_ui(param)
         print(f"{param} updated manually to {new_val}")
 
     def open_selection_dialog(self):
@@ -344,7 +544,7 @@ class ParameterTunerWindow(QtWidgets.QWidget):
                 self.parameters[param]["value"] = default_val
                 spin.setValue(default_val)
                 slider.setValue(int(default_val * 1e6))
-                manualEdit.setText(f"{default_val:.6g}")
+
         QtWidgets.QMessageBox.information(self, "Reset", "Parameters have been reset to default values.")
 
     def save_calibration(self):
