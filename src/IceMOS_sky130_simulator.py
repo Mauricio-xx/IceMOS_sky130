@@ -125,7 +125,7 @@ class IceMOS_simulator_sky130:
         return self._simulate_netlist(netlist_path)
 
 ## TODO: fix vgs for vsg
-    def simulate_id_vs_vsd_sweep_vg(self, device_type, bin_number=None, W=None, L=None,
+    def simulate_is_vs_vsd_sweep_vg(self, device_type, bin_number=None, W=None, L=None,
                         vsg_start=0, vsg_stop=1.8, vsg_step=0.2,
                         vsd_start=0, vsd_stop=1.8, vsd_step=0.1):
         """

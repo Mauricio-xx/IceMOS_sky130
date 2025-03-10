@@ -36,7 +36,7 @@ def test_iv_vds_plot_pmos():
     simulator = IceMOS_simulator_sky130(original_model_file)
 
     print("Simulating IV VDS for PMOS using bin number 10:")
-    iv_vds_output = simulator.simulate_id_vs_vsd_sweep_vg(device_type='pch', bin_number=10,
+    iv_vds_output = simulator.simulate_is_vs_vsd_sweep_vg(device_type='pch', bin_number=10,
                                               vsg_start=0, vsg_stop=1.8, vsg_step=0.1,
                                               vsd_start=0, vsd_stop=1.8, vsd_step=0.1)
     print(iv_vds_output)

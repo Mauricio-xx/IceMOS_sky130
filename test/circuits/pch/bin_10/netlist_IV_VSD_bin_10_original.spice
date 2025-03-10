@@ -18,12 +18,12 @@ VDD net1 GND 1.8
 
 .control
 save all
-let vgsval = 0
+let vgsval = 0.0
 let step = 0.1
 while vgsval <= 1.8
     echo Sweeping VGS = $&vgsval
     alter VGATE dc=$&vgsval
-    dc VSOURCE 0 1.8 0.1
+    dc VSOURCE 0.0 1.8 0.1
     wrdata results_IV_ISD_vs_VSD_for_VG_sweep/p_mosfet_id_vs_vsd_{$&vgsval}.csv V(VGATE) I(VSOURCE) I(vdsM)
     write results_IV_ISD_vs_VSD_for_VG_sweep/p_mosfet_id_vs_vsd_{$&vgsval}.raw
     let vgsval = $&vgsval + $&step

@@ -381,6 +381,7 @@ class ParameterTunerWindow(QtWidgets.QWidget):
         EPSILON = 1e-18
         desired_int_range = 100_000
 
+        # Clear the layout
         while self.form_layout.count():
             child = self.form_layout.takeAt(0)
             if child.widget():
@@ -396,20 +397,18 @@ class ParameterTunerWindow(QtWidgets.QWidget):
 
             current = float(values["value"])
 
-            # Retrieve default value from default_parameters if available
+            # Retrieve the default value from default_parameters if available
             if param in self.default_parameters and isinstance(self.default_parameters[param], dict):
                 default_val = float(self.default_parameters[param]["value"])
             else:
                 default_val = current
 
-            # Compute min and max if not already set:
+            # Compute min and max if not already set
             if "min" not in values or "max" not in values:
                 if default_val == 0.0:
-                    # If the default is exactly zero, set a fixed range [-1, 1]
                     min_val = -1.0
                     max_val = 1.0
                 elif abs(default_val) < EPSILON:
-                    # For near-zero values (but not exactly zero), use a very small range.
                     offset = 1e-9
                     min_val = -offset
                     max_val = offset
@@ -424,12 +423,11 @@ class ParameterTunerWindow(QtWidgets.QWidget):
                 min_val = float(values["min"])
                 max_val = float(values["max"])
 
-            # Compute initial scale factor for the slider range
+            # Compute scale for slider mapping.
             range_width = max_val - min_val
             scale = 1e6 if range_width == 0 else desired_int_range / range_width
 
             slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-            # Use round() to include endpoints properly.
             slider.setMinimum(round(min_val * scale))
             slider.setMaximum(round(max_val * scale))
             slider.setValue(round(current * scale))
@@ -441,11 +439,9 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             spin.setRange(min_val, max_val)
             spin.setDecimals(6)
             spin.setValue(current)
-            # Make spin read-only (current value display)
             spin.setReadOnly(True)
             spin.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
 
-            # Create spin boxes for editing min and max values
             minEdit = QtWidgets.QDoubleSpinBox()
             minEdit.setRange(-1e20, 1e9)
             minEdit.setDecimals(8)
@@ -456,15 +452,18 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             maxEdit.setDecimals(8)
             maxEdit.setValue(max_val)
 
-            # Create buttons to apply the new min and max
             setMinBtn = QtWidgets.QPushButton("Set Min")
             setMaxBtn = QtWidgets.QPushButton("Set Max")
 
-            # Create a QLineEdit for manual current value entry and a button to apply it.
             manualCurrentEdit = QtWidgets.QLineEdit()
             manualCurrentEdit.setFixedWidth(80)
             manualCurrentEdit.setText(f"{current:.6g}")
             setCurrentBtn = QtWidgets.QPushButton("Set Current")
+
+            # New: A label to display the default value.
+            defaultLabel = QtWidgets.QLabel(f"Default: {default_val:.6g}")
+            defaultLabel.setFixedWidth(80)
+            defaultLabel.setStyleSheet("color: #aaaaaa;")  # Dimmer text for default values
 
             # Connect the "Set" buttons:
             setMinBtn.clicked.connect(lambda _, p=param, val=minEdit.value(): self.set_min_value(p, val))
@@ -472,13 +471,12 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             setCurrentBtn.clicked.connect(
                 lambda _, p=param, edit=manualCurrentEdit: self.update_parameter_from_text(p, edit.text()))
 
-            # Connect slider changes to update the read-only spin display and parameter value.
             slider.valueChanged.connect(lambda val, s=spin, sc=scale: s.setValue(val / sc))
             slider.valueChanged.connect(lambda val, key=param, sc=scale: self.update_parameter(key, val / sc))
 
             container = QtWidgets.QWidget()
             h_layout = QtWidgets.QHBoxLayout(container)
-            # Order: Slider | current display (spin) | minEdit | Set Min | maxEdit | Set Max | manualCurrentEdit | Set Current
+            # Order: Slider | current display | minEdit | Set Min | maxEdit | Set Max | manual entry | Set Current | Default display
             h_layout.addWidget(slider)
             h_layout.addWidget(spin)
             h_layout.addWidget(QtWidgets.QLabel("Min:"))
@@ -489,12 +487,12 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             h_layout.addWidget(setMaxBtn)
             h_layout.addWidget(manualCurrentEdit)
             h_layout.addWidget(setCurrentBtn)
+            h_layout.addWidget(defaultLabel)
             h_layout.setContentsMargins(0, 0, 0, 0)
             self.form_layout.addRow(param, container)
             self.controls[param] = (
             slider, spin, minEdit, maxEdit, manualCurrentEdit, setMinBtn, setMaxBtn, setCurrentBtn)
-
-            #self.sync_parameter_ui(param)
+            self.sync_parameter_ui(param)
 
     def sync_parameter_ui(self, param):
         """
@@ -715,55 +713,91 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Calibration", "Calibration loop executed (placeholder).")
 
 
-class SimulationWindow(QtWidgets.QDialog):
-    """
-    A window to configure and run IV simulations.
-    It allows the user to choose the simulation type, configure sweep parameters,
-    and then run the simulation with continuous plot updating.
-    """
+import sys, os, json, pyqtgraph as pg, pandas as pd
+from PyQt5 import QtWidgets, QtCore
 
+# Helper function for plot labels.
+def get_plot_labels(device_type, sim_type):
+    device_type = device_type.lower()
+    if device_type == "nch":
+        if sim_type == "IV vs VG":
+            return ("NMOS: IDS vs VGS", "VGS (V)", "IDS (A)")
+        else:
+            return ("NMOS: IDS vs VDS (VGS sweep)", "VDS (V)", "IDS (A)")
+    else:
+        if sim_type == "IV vs VG":
+            return ("PMOS: ISD vs VSG", "VSG (V)", "ISD (A)")
+        else:
+            return ("PMOS: ISD vs VSD (VSG sweep)", "VSD (V)", "ISD (A)")
+
+# A floating plot window that remains open and updates its data.
+class PlotWindow(pg.GraphicsLayoutWidget):
+    def __init__(self, title, x_label, y_label, parent=None):
+        super().__init__(parent)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose, False)
+        self.setAutoFillBackground(True)
+        self.setWindowTitle(title)
+        self.plotItem = self.addPlot(title=title)
+        self.plotItem.showGrid(x=True, y=True)
+        self.plotItem.setLabel('bottom', x_label)
+        self.plotItem.setLabel('left', y_label)
+
+    def update_data(self, curves):
+        """
+        Update the plot with multiple curves.
+        curves: a list of tuples (x_data, y_data, legend_label)
+        """
+        self.plotItem.clear()
+        # Create a legend on the plot.
+        legend = self.plotItem.addLegend(offset=(10, 10))
+        for x_data, y_data, label in curves:
+            curve = self.plotItem.plot(x_data, y_data,
+                                       pen=pg.mkPen(color='b', width=2),
+                                       symbol='o', symbolSize=5,
+                                       name=label)
+            legend.addItem(curve, label)
+        # Force a repaint asynchronously.
+        QtCore.QTimer.singleShot(0, self.plotItem.update)
+
+# The simulation configuration window.
+class SimulationWindow(QtWidgets.QDialog):
     def __init__(self, device_type, bin_number, lib_file_path, parent=None):
         super().__init__(parent)
         self.device_type = device_type.lower()
         self.bin_number = bin_number
         self.lib_file_path = lib_file_path
         self.setWindowTitle("Simulation Configuration")
-        # Define the timer here so it exists for later connections.
+        # Timer for continuous simulation (non-blocking)
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.run_simulation_and_update_plot)
-        # Now set up the UI.
+        self.timer.timeout.connect(self.run_simulation)
         self.setup_ui()
-        # Create a simulator instance.
         from IceMOS_sky130_simulator import IceMOS_simulator_sky130
         self.simulator = IceMOS_simulator_sky130(self.lib_file_path)
+        self.plotWin = None  # Will hold our floating plot window
 
     def setup_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
-
-        # Simulation type selection.
+        # Simulation type combobox.
         self.simTypeCombo = QtWidgets.QComboBox()
         self.simTypeCombo.addItems(["IV vs VG", "IV vs VDS"])
         layout.addWidget(QtWidgets.QLabel("Select Simulation Type:"))
         layout.addWidget(self.simTypeCombo)
-
-        # Simulation configuration fields.
+        # Simulation parameter fields.
         self.vgStartEdit = QtWidgets.QLineEdit("0")
-        self.vgStopEdit = QtWidgets.QLineEdit("1.8")
-        self.vgStepEdit = QtWidgets.QLineEdit("0.1")
+        self.vgStopEdit  = QtWidgets.QLineEdit("1.8")
+        self.vgStepEdit  = QtWidgets.QLineEdit("0.1")
         self.vdsStartEdit = QtWidgets.QLineEdit("0")
-        self.vdsStopEdit = QtWidgets.QLineEdit("1.8")
-        self.vdsStepEdit = QtWidgets.QLineEdit("1.0")
-
-        configLayout = QtWidgets.QFormLayout()
-        configLayout.addRow("VG Start:", self.vgStartEdit)
-        configLayout.addRow("VG Stop:", self.vgStopEdit)
-        configLayout.addRow("VG Step:", self.vgStepEdit)
-        configLayout.addRow("VDS Start:", self.vdsStartEdit)
-        configLayout.addRow("VDS Stop:", self.vdsStopEdit)
-        configLayout.addRow("VDS Step:", self.vdsStepEdit)
-        layout.addLayout(configLayout)
-
-        # Buttons to run simulation.
+        self.vdsStopEdit  = QtWidgets.QLineEdit("1.8")
+        self.vdsStepEdit  = QtWidgets.QLineEdit("1.0")
+        formLayout = QtWidgets.QFormLayout()
+        formLayout.addRow("VG Start:", self.vgStartEdit)
+        formLayout.addRow("VG Stop:",  self.vgStopEdit)
+        formLayout.addRow("VG Step:",  self.vgStepEdit)
+        formLayout.addRow("VDS (or VSD) Start:", self.vdsStartEdit)
+        formLayout.addRow("VDS (or VSD) Stop:",  self.vdsStopEdit)
+        formLayout.addRow("VDS (or VSD) Step:",  self.vdsStepEdit)
+        layout.addLayout(formLayout)
+        # Buttons for simulation.
         self.runOnceBtn = QtWidgets.QPushButton("Run Simulation Once")
         self.runContinuousBtn = QtWidgets.QPushButton("Start Continuous Simulation")
         self.stopBtn = QtWidgets.QPushButton("Stop Continuous Simulation")
@@ -772,59 +806,121 @@ class SimulationWindow(QtWidgets.QDialog):
         btnLayout.addWidget(self.runContinuousBtn)
         btnLayout.addWidget(self.stopBtn)
         layout.addLayout(btnLayout)
-
-        # Plot area.
-        self.plotWidget = pg.GraphicsLayoutWidget(title="Simulation Plot")
-        layout.addWidget(self.plotWidget)
-
-        self.runOnceBtn.clicked.connect(self.run_simulation_and_update_plot)
-        self.runContinuousBtn.clicked.connect(lambda: self.timer.start(5000))  # Update every 5 seconds.
+        # Status label.
+        self.statusLabel = QtWidgets.QLabel("")
+        layout.addWidget(self.statusLabel)
+        # Connect signals.
+        self.runOnceBtn.clicked.connect(self.run_simulation)
+        self.runContinuousBtn.clicked.connect(lambda: self.timer.start(5000))
         self.stopBtn.clicked.connect(self.timer.stop)
-
         self.setLayout(layout)
 
-    def run_simulation_and_update_plot(self):
+    def run_simulation(self):
         sim_type = self.simTypeCombo.currentText()
         try:
             vg_start = float(self.vgStartEdit.text())
-            vg_stop = float(self.vgStopEdit.text())
-            vg_step = float(self.vgStepEdit.text())
+            vg_stop  = float(self.vgStopEdit.text())
+            vg_step  = float(self.vgStepEdit.text())
         except ValueError:
             QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VG simulation values.")
             return
+
+        # For "IV vs VG" simulation.
         if sim_type == "IV vs VG":
-            # Run IV vs VG simulation.
-            output = self.simulator.simulate_iv(self.device_type, bin_number=self.bin_number,
-                                                vgate_start=vg_start, vgate_stop=vg_stop, vgate_step=vg_step)
-            # Plot results.
-            plotWin = self.simulator.plot_iv_results_qt(self.device_type, self.bin_number,
-                                                        csv_filename="IV_ID_vs_VG.csv")
+            output = self.simulator.simulate_iv(
+                self.device_type, bin_number=self.bin_number,
+                vgate_start=vg_start, vgate_stop=vg_stop, vgate_step=vg_step
+            )
+            if not output:
+                QtWidgets.QMessageBox.warning(self, "Error", "No netlist output from simulator.")
+                return
+            folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}", "results_IV_ID_vs_VG")
+            csv_filename = "IV_ID_vs_VG.csv"
+            curves = []
+            try:
+                df = pd.read_csv(os.path.join(folder, csv_filename), sep=r'\s+', header=None)
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, "Error", f"Error reading CSV file: {e}")
+                return
+            df.columns = ["X", "Y"]
+            curves.append((df["X"].values, df["Y"].values, "Curve"))
         else:
             try:
                 vds_start = float(self.vdsStartEdit.text())
-                vds_stop = float(self.vdsStopEdit.text())
-                vds_step = float(self.vdsStepEdit.text())
+                vds_stop  = float(self.vdsStopEdit.text())
+                vds_step  = float(self.vdsStepEdit.text())
             except ValueError:
                 QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VDS simulation values.")
                 return
-            output = self.simulator.simulate_id_vs_vds_sweep_vg(self.device_type, bin_number=self.bin_number,
-                                                                vgs_start=vg_start, vgs_stop=vg_stop, vgs_step=vg_step,
-                                                                vds_start=vds_start, vds_stop=vds_stop,
-                                                                vds_step=vds_step)
-            plotWin = self.simulator.plot_iv_vds_results_qt(self.device_type, self.bin_number)
-        # Clear previous plot and update with the new one.
-        self.plotWidget.clear()
-        plotWin.show()
-        print("Simulation run and plot updated.")
+
+            # For NMOS or PMOS, call the appropriate simulation method.
+            if self.device_type == 'nch':
+                output = self.simulator.simulate_id_vs_vds_sweep_vg(
+                    self.device_type, bin_number=self.bin_number,
+                    vgs_start=vg_start, vgs_stop=vg_stop, vgs_step=vg_step,
+                    vds_start=vds_start, vds_stop=vds_stop, vds_step=vds_step
+                )
+            else:
+                # For PMOS we assume a method simulate_is_vs_vsd_sweep_vg exists.
+                output = self.simulator.simulate_is_vs_vsd_sweep_vg(
+                    self.device_type, bin_number=self.bin_number,
+                    vsg_start=vg_start, vsg_stop=vg_stop, vsg_step=vg_step,
+                    vsd_start=vds_start, vsd_stop=vds_stop, vsd_step=vds_step
+                )
+            # Determine results folder based on device type.
+            if self.device_type == 'nch':
+                results_path = "results_IV_IDS_vs_VDS_for_VG_sweep"
+                col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
+                x_col = "V(VDS)"
+                y_col = "I(VDSM)"
+            else:
+                results_path = "results_IV_ISD_vs_VSD_for_VG_sweep"
+                col_names = ["V(VSD)", "V(VG)", "V(VSD)_dup", "I(ISD)", "V(VSD)_dup", "I(VSDM)"]
+                x_col = "V(VSD)"
+                y_col = "I(VSDM)"
+            folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}", results_path)
+            csv_files = [f for f in os.listdir(folder) if f.endswith(".csv")]
+            if not csv_files:
+                QtWidgets.QMessageBox.warning(self, "No Data", "No CSV data found.")
+                return
+            csv_files.sort()
+            curves = []
+            for csv_file in csv_files:
+                csv_path = os.path.join(folder, csv_file)
+                try:
+                    df = pd.read_csv(csv_path, sep=r'\s+', header=None)
+                except Exception as e:
+                    print(f"Error reading {csv_file}: {e}")
+                    continue
+                df.columns = col_names
+                # Extract legend label from file name (value after last underscore)
+                try:
+                    legend_label = csv_file.rsplit('_', 1)[-1].replace('.csv', '')
+                except Exception as e:
+                    legend_label = csv_file
+                curves.append((df[x_col].values, df[y_col].values, f"VGS = {legend_label} V"))
+        # Get figure labels.
+        title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
+        # Create or update the floating plot window.
+        if self.plotWin is None or not self.plotWin.isVisible():
+            self.plotWin = PlotWindow(title, x_label, y_label)
+        else:
+            self.plotWin.setWindowTitle(title)
+            self.plotWin.plotItem.setTitle(title)
+            self.plotWin.plotItem.setLabel('bottom', x_label)
+            self.plotWin.plotItem.setLabel('left', y_label)
+        # Update the plot with all curves.
+        self.plotWin.update_data(curves)
+        self.plotWin.show()
+        self.statusLabel.setText(f"Simulation {sim_type} run, plot updated.")
+        print("Simulation run complete, new plot window updated.")
 
 
-def main():
-    app = QtWidgets.QApplication(sys.argv)
-    main_win = MainWindow("pch", 10)
-    main_win.resize(1200, 800)
-    main_win.show()
-    sys.exit(app.exec_())
 
-
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     app = QtWidgets.QApplication(sys.argv)
+#     # Example usage: for PMOS, bin 10. Update the file path as appropriate.
+#     simWin = SimulationWindow("pch", 10, "/path/to/pch/bin_10/bin_10_pch_original.lib")
+#     simWin.resize(600, 400)
+#     simWin.show()
+#     sys.exit(app.exec_())
