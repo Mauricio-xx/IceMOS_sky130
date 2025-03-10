@@ -311,14 +311,7 @@ class IceMOS_simulator_sky130:
             try:
                 df = pd.read_csv(csv_path, sep=r'\s+', header=None)
                 df.columns = col_names
-                # print("------------------------------------")
-                # print("")
-                # print(col_names)
-                # print("")
-                # print("------------------------------------")
-                # print(df[x_col].values)
-                # print("------------------------------------")
-                # print(df[y_col].values)
+
             except Exception as e:
                 print(f"Error reading CSV file {csv_path}: {e}")
                 continue

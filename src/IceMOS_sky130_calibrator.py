@@ -87,8 +87,8 @@ class ParameterTunerWindow(QtWidgets.QWidget):
     """
     def __init__(self, current_params, default_params, available_parameters, parent=None):
         super().__init__(parent)
-        self.parameters = current_params.copy()
-        self.default_parameters = default_params.copy()
+        self.parameters = current_params
+        self.default_parameters = default_params
         self.available_parameters = available_parameters.copy()
         self.setup_ui()
 
@@ -205,13 +205,90 @@ class ParameterTunerWindow(QtWidgets.QWidget):
     import math
     from PyQt5 import QtWidgets
 
+    # def update_slider_range(self, param):
+    #     desired_int_range = 100_000
+    #     if param not in self.controls:
+    #         return
+    #     slider, spin, minSpin, maxSpin, manualEdit = self.controls[param]
+    #
+    #     # 1. Get new min and max from their spin boxes; swap if reversed.
+    #     new_min = minSpin.value()
+    #     new_max = maxSpin.value()
+    #     if new_min > new_max:
+    #         new_min, new_max = new_max, new_min
+    #         minSpin.blockSignals(True)
+    #         maxSpin.blockSignals(True)
+    #         minSpin.setValue(new_min)
+    #         maxSpin.setValue(new_max)
+    #         minSpin.blockSignals(False)
+    #         maxSpin.blockSignals(False)
+    #
+    #     # 2. Compute the float range; if too small, use a fallback range.
+    #     rng = new_max - new_min
+    #     if abs(rng) < 1e-30:
+    #         new_min, new_max = -1e-9, 1e-9
+    #         rng = new_max - new_min
+    #         minSpin.blockSignals(True)
+    #         maxSpin.blockSignals(True)
+    #         minSpin.setValue(new_min)
+    #         maxSpin.setValue(new_max)
+    #         minSpin.blockSignals(False)
+    #         maxSpin.blockSignals(False)
+    #
+    #     # 3. Calculate the scale factor mapping float range to integer range.
+    #     scale = desired_int_range / rng
+    #     MAX_INT = 2147483647
+    #     largest_abs = max(abs(new_min), abs(new_max))
+    #     if largest_abs < 1e-18:
+    #         largest_abs = 1e-9
+    #     if (new_max * scale) > MAX_INT or (new_min * scale) < -MAX_INT:
+    #         scale = 0.9 * MAX_INT / largest_abs
+    #
+    #     # 4. Clamp the current value from the data model.
+    #     cur_val = self.parameters[param]["value"]
+    #     if cur_val < new_min:
+    #         cur_val = new_min
+    #     elif cur_val > new_max:
+    #         cur_val = new_max
+    #
+    #     # 5. Block signals and update slider/spin ranges.
+    #     slider.blockSignals(True)
+    #     spin.blockSignals(True)
+    #     # Use floor for min and ceil for max to ensure extremes are reachable.
+    #     slider.setMinimum(math.floor(new_min * scale))
+    #     slider.setMaximum(math.ceil(new_max * scale))
+    #     slider.setValue(round(cur_val * scale))
+    #     spin.setRange(new_min, new_max)
+    #     spin.setValue(cur_val)
+    #
+    #     # 6. Adjust step sizes (e.g. ~1% for single step, ~10% for page step).
+    #     int_range = slider.maximum() - slider.minimum()
+    #     if int_range > 0:
+    #         slider.setSingleStep(max(1, int_range // 100))
+    #         slider.setPageStep(max(1, int_range // 10))
+    #     else:
+    #         slider.setSingleStep(1)
+    #         slider.setPageStep(1)
+    #
+    #     slider.blockSignals(False)
+    #     spin.blockSignals(False)
+    #
+    #     # 7. Update the parameter dictionary.
+    #     self.parameters[param]["min"] = new_min
+    #     self.parameters[param]["max"] = new_max
+    #     self.parameters[param]["value"] = cur_val
+    #
+    #     # 8. Force the slider to repaint and process events.
+    #     slider.repaint()
+    #     QtWidgets.QApplication.processEvents()
+
     def update_slider_range(self, param):
         desired_int_range = 100_000
         if param not in self.controls:
             return
         slider, spin, minSpin, maxSpin, manualEdit = self.controls[param]
 
-        # 1. Get new min and max from their spin boxes; swap if reversed.
+        # 1. Get new min and max from the spin boxes; swap if reversed.
         new_min = minSpin.value()
         new_max = maxSpin.value()
         if new_min > new_max:
@@ -223,7 +300,7 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             minSpin.blockSignals(False)
             maxSpin.blockSignals(False)
 
-        # 2. Compute the float range; if too small, use a fallback range.
+        # 2. Compute range; if too small, force a fallback.
         rng = new_max - new_min
         if abs(rng) < 1e-30:
             new_min, new_max = -1e-9, 1e-9
@@ -235,33 +312,32 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             minSpin.blockSignals(False)
             maxSpin.blockSignals(False)
 
-        # 3. Calculate the scale factor mapping float range to integer range.
-        scale = desired_int_range / rng
+        # 3. Compute the scaling factor.
+        new_scale = desired_int_range / rng
         MAX_INT = 2147483647
         largest_abs = max(abs(new_min), abs(new_max))
         if largest_abs < 1e-18:
             largest_abs = 1e-9
-        if (new_max * scale) > MAX_INT or (new_min * scale) < -MAX_INT:
-            scale = 0.9 * MAX_INT / largest_abs
+        if (new_max * new_scale) > MAX_INT or (new_min * new_scale) < -MAX_INT:
+            new_scale = 0.9 * MAX_INT / largest_abs
 
-        # 4. Clamp the current value from the data model.
+        # 4. Clamp current value from the model.
         cur_val = self.parameters[param]["value"]
         if cur_val < new_min:
             cur_val = new_min
         elif cur_val > new_max:
             cur_val = new_max
 
-        # 5. Block signals and update slider/spin ranges.
+        # 5. Block signals and update slider and spin.
         slider.blockSignals(True)
         spin.blockSignals(True)
-        # Use floor for min and ceil for max to ensure extremes are reachable.
-        slider.setMinimum(math.floor(new_min * scale))
-        slider.setMaximum(math.ceil(new_max * scale))
-        slider.setValue(round(cur_val * scale))
+        slider.setMinimum(round(new_min * new_scale))
+        slider.setMaximum(round(new_max * new_scale))
+        slider.setValue(round(cur_val * new_scale))
         spin.setRange(new_min, new_max)
         spin.setValue(cur_val)
 
-        # 6. Adjust step sizes (e.g. ~1% for single step, ~10% for page step).
+        # Adjust step sizes based on the integer range.
         int_range = slider.maximum() - slider.minimum()
         if int_range > 0:
             slider.setSingleStep(max(1, int_range // 100))
@@ -273,13 +349,19 @@ class ParameterTunerWindow(QtWidgets.QWidget):
         slider.blockSignals(False)
         spin.blockSignals(False)
 
-        # 7. Update the parameter dictionary.
         self.parameters[param]["min"] = new_min
         self.parameters[param]["max"] = new_max
         self.parameters[param]["value"] = cur_val
 
-        # 8. Force the slider to repaint and process events.
-        slider.repaint()
+        # 6. Force geometry updates on the slider and its parent container.
+        slider.updateGeometry()
+        slider.adjustSize()
+        parent = slider.parentWidget()
+        if parent:
+            parent.updateGeometry()
+            parent.adjustSize()
+        # Use a short single-shot timer to schedule a repaint.
+        QtCore.QTimer.singleShot(0, lambda: slider.repaint())
         QtWidgets.QApplication.processEvents()
 
     def set_min_value(self, param, new_min):
@@ -582,21 +664,158 @@ class MainWindow(QtWidgets.QMainWindow):
     def init_ui(self):
         self.setWindowTitle("IceMOS Sky130 Calibrator")
         self.setStyleSheet("background-color: #2b2b2b; color: #f0f0f0;")
-        # Removed the left pane; we rely on the "Add Parameter" button
+        # Remove the left pane; we rely on the tuner.
         self.tuner = ParameterTunerWindow(self.current_parameters, self.default_parameters, self.available_parameters)
         self.run_button = QtWidgets.QPushButton("Run Calibration Loop")
+        self.updateLibButton = QtWidgets.QPushButton("Update Modified LIB")
+        self.simulationButton = QtWidgets.QPushButton("Open Simulation Window")
+
         central_widget = QtWidgets.QWidget()
         main_layout = QtWidgets.QVBoxLayout(central_widget)
+        # Place buttons on a horizontal toolbar.
+        toolbarLayout = QtWidgets.QHBoxLayout()
+        toolbarLayout.addWidget(self.run_button)
+        toolbarLayout.addWidget(self.updateLibButton)
+        toolbarLayout.addWidget(self.simulationButton)
+        main_layout.addLayout(toolbarLayout)
         main_layout.addWidget(self.tuner)
-        main_layout.addWidget(self.run_button)
         self.setCentralWidget(central_widget)
+
         self.run_button.clicked.connect(self.run_calibration)
+        self.updateLibButton.clicked.connect(self.update_modified_lib)
+        self.simulationButton.clicked.connect(self.open_simulation_window)
+
+    def update_modified_lib(self):
+        # Import ModelModifier from the param handler module.
+        from IceMOS_sky130_param_handler import ModelModifier
+        # Construct the modified file path (assumes _original.lib is in self.lib_file_path)
+        modified_file_path = self.lib_file_path.replace("_original.lib", "_modified.lib")
+        modifier = ModelModifier(self.lib_file_path, modified_file_path, device_type=self.device_type)
+        print('------ Parameters ---------')
+        print(self.current_parameters.items())
+        for param, val in self.current_parameters.items():
+            # Assume val is a dict with key "value"
+            if isinstance(val, dict):
+                new_val = val.get("value", None)
+                print(f'new_val ({self.device_type}) ({param}) = {new_val}')
+                if new_val is not None:
+                    # Modify the parameter in the given bin.
+                    modifier.modify_parameter(self.bin_number, param, str(new_val))
+        QtWidgets.QMessageBox.information(self, "LIB Update", "Modified LIB file has been updated.")
+
+    def open_simulation_window(self):
+        simWin = SimulationWindow(self.device_type, self.bin_number, self.lib_file_path)
+        simWin.resize(800, 600)
+        simWin.show()
 
     def run_calibration(self):
         print("Running calibration with parameters:")
         for k, v in self.current_parameters.items():
             print(f"  {k}: {v}")
         QtWidgets.QMessageBox.information(self, "Calibration", "Calibration loop executed (placeholder).")
+
+
+class SimulationWindow(QtWidgets.QDialog):
+    """
+    A window to configure and run IV simulations.
+    It allows the user to choose the simulation type, configure sweep parameters,
+    and then run the simulation with continuous plot updating.
+    """
+
+    def __init__(self, device_type, bin_number, lib_file_path, parent=None):
+        super().__init__(parent)
+        self.device_type = device_type.lower()
+        self.bin_number = bin_number
+        self.lib_file_path = lib_file_path
+        self.setWindowTitle("Simulation Configuration")
+        # Define the timer here so it exists for later connections.
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self.run_simulation_and_update_plot)
+        # Now set up the UI.
+        self.setup_ui()
+        # Create a simulator instance.
+        from IceMOS_sky130_simulator import IceMOS_simulator_sky130
+        self.simulator = IceMOS_simulator_sky130(self.lib_file_path)
+
+    def setup_ui(self):
+        layout = QtWidgets.QVBoxLayout(self)
+
+        # Simulation type selection.
+        self.simTypeCombo = QtWidgets.QComboBox()
+        self.simTypeCombo.addItems(["IV vs VG", "IV vs VDS"])
+        layout.addWidget(QtWidgets.QLabel("Select Simulation Type:"))
+        layout.addWidget(self.simTypeCombo)
+
+        # Simulation configuration fields.
+        self.vgStartEdit = QtWidgets.QLineEdit("0")
+        self.vgStopEdit = QtWidgets.QLineEdit("1.8")
+        self.vgStepEdit = QtWidgets.QLineEdit("0.1")
+        self.vdsStartEdit = QtWidgets.QLineEdit("0")
+        self.vdsStopEdit = QtWidgets.QLineEdit("1.8")
+        self.vdsStepEdit = QtWidgets.QLineEdit("1.0")
+
+        configLayout = QtWidgets.QFormLayout()
+        configLayout.addRow("VG Start:", self.vgStartEdit)
+        configLayout.addRow("VG Stop:", self.vgStopEdit)
+        configLayout.addRow("VG Step:", self.vgStepEdit)
+        configLayout.addRow("VDS Start:", self.vdsStartEdit)
+        configLayout.addRow("VDS Stop:", self.vdsStopEdit)
+        configLayout.addRow("VDS Step:", self.vdsStepEdit)
+        layout.addLayout(configLayout)
+
+        # Buttons to run simulation.
+        self.runOnceBtn = QtWidgets.QPushButton("Run Simulation Once")
+        self.runContinuousBtn = QtWidgets.QPushButton("Start Continuous Simulation")
+        self.stopBtn = QtWidgets.QPushButton("Stop Continuous Simulation")
+        btnLayout = QtWidgets.QHBoxLayout()
+        btnLayout.addWidget(self.runOnceBtn)
+        btnLayout.addWidget(self.runContinuousBtn)
+        btnLayout.addWidget(self.stopBtn)
+        layout.addLayout(btnLayout)
+
+        # Plot area.
+        self.plotWidget = pg.GraphicsLayoutWidget(title="Simulation Plot")
+        layout.addWidget(self.plotWidget)
+
+        self.runOnceBtn.clicked.connect(self.run_simulation_and_update_plot)
+        self.runContinuousBtn.clicked.connect(lambda: self.timer.start(5000))  # Update every 5 seconds.
+        self.stopBtn.clicked.connect(self.timer.stop)
+
+        self.setLayout(layout)
+
+    def run_simulation_and_update_plot(self):
+        sim_type = self.simTypeCombo.currentText()
+        try:
+            vg_start = float(self.vgStartEdit.text())
+            vg_stop = float(self.vgStopEdit.text())
+            vg_step = float(self.vgStepEdit.text())
+        except ValueError:
+            QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VG simulation values.")
+            return
+        if sim_type == "IV vs VG":
+            # Run IV vs VG simulation.
+            output = self.simulator.simulate_iv(self.device_type, bin_number=self.bin_number,
+                                                vgate_start=vg_start, vgate_stop=vg_stop, vgate_step=vg_step)
+            # Plot results.
+            plotWin = self.simulator.plot_iv_results_qt(self.device_type, self.bin_number,
+                                                        csv_filename="IV_ID_vs_VG.csv")
+        else:
+            try:
+                vds_start = float(self.vdsStartEdit.text())
+                vds_stop = float(self.vdsStopEdit.text())
+                vds_step = float(self.vdsStepEdit.text())
+            except ValueError:
+                QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VDS simulation values.")
+                return
+            output = self.simulator.simulate_id_vs_vds_sweep_vg(self.device_type, bin_number=self.bin_number,
+                                                                vgs_start=vg_start, vgs_stop=vg_stop, vgs_step=vg_step,
+                                                                vds_start=vds_start, vds_stop=vds_stop,
+                                                                vds_step=vds_step)
+            plotWin = self.simulator.plot_iv_vds_results_qt(self.device_type, self.bin_number)
+        # Clear previous plot and update with the new one.
+        self.plotWidget.clear()
+        plotWin.show()
+        print("Simulation run and plot updated.")
 
 
 def main():

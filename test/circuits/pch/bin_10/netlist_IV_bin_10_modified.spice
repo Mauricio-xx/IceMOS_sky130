@@ -19,7 +19,7 @@ VDD net1 GND 1.8
 .control
 save all
 op
-  dc VGATE 0 1.8 0.1
+  dc VGATE 0.0 1.8 0.1
   wrdata results_IV_ID_vs_VG/IV_ID_vs_VG.csv I(vdsM)
   write results_IV_ID_vs_VG/IV_ID_vs_VG.raw
   *showmod M2
