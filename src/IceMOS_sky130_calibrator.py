@@ -712,11 +712,13 @@ class MainWindow(QtWidgets.QMainWindow):
             print(f"  {k}: {v}")
         QtWidgets.QMessageBox.information(self, "Calibration", "Calibration loop executed (placeholder).")
 
-
-import sys, os, json, pyqtgraph as pg, pandas as pd
+import sys, os
+import pyqtgraph as pg
+import pandas as pd
 from PyQt5 import QtWidgets, QtCore
 
-# Helper function for plot labels.
+from IceMOS_sky130_simulator import IceMOS_simulator_sky130
+
 def get_plot_labels(device_type, sim_type):
     device_type = device_type.lower()
     if device_type == "nch":
@@ -730,36 +732,34 @@ def get_plot_labels(device_type, sim_type):
         else:
             return ("PMOS: ISD vs VSD (VSG sweep)", "VSD (V)", "ISD (A)")
 
-# A floating plot window that remains open and updates its data.
+
 class PlotWindow(pg.GraphicsLayoutWidget):
     def __init__(self, title, x_label, y_label, parent=None):
         super().__init__(parent)
-        self.setAttribute(QtCore.Qt.WA_DeleteOnClose, False)
-        self.setAutoFillBackground(True)
         self.setWindowTitle(title)
         self.plotItem = self.addPlot(title=title)
         self.plotItem.showGrid(x=True, y=True)
         self.plotItem.setLabel('bottom', x_label)
-        self.plotItem.setLabel('left', y_label)
+        self.plotItem.setLabel('left',   y_label)
+        # Add a legend if you want multiple curves
+        self.legend = self.plotItem.addLegend(offset=(10, 10))
 
     def update_data(self, curves):
         """
-        Update the plot with multiple curves.
-        curves: a list of tuples (x_data, y_data, legend_label)
+        curves: a list of (x_data, y_data, label).
+        Clears old data and plots each curve with a label.
         """
         self.plotItem.clear()
-        # Create a legend on the plot.
-        legend = self.plotItem.addLegend(offset=(10, 10))
-        for x_data, y_data, label in curves:
-            curve = self.plotItem.plot(x_data, y_data,
-                                       pen=pg.mkPen(color='b', width=2),
-                                       symbol='o', symbolSize=5,
-                                       name=label)
-            legend.addItem(curve, label)
-        # Force a repaint asynchronously.
-        QtCore.QTimer.singleShot(0, self.plotItem.update)
+        # Re-add the legend so old entries are gone
+        self.legend = self.plotItem.addLegend(offset=(10, 10))
+        for (x, y, label) in curves:
+            self.plotItem.plot(x, y,
+                               pen=pg.mkPen(width=2),
+                               symbol='o', symbolSize=5,
+                               name=label)
+        # Force an update
+        # QtCore.QTimer.singleShot(0, self.plotItem.update)
 
-# The simulation configuration window.
 class SimulationWindow(QtWidgets.QDialog):
     def __init__(self, device_type, bin_number, lib_file_path, parent=None):
         super().__init__(parent)
@@ -767,37 +767,45 @@ class SimulationWindow(QtWidgets.QDialog):
         self.bin_number = bin_number
         self.lib_file_path = lib_file_path
         self.setWindowTitle("Simulation Configuration")
-        # Timer for continuous simulation (non-blocking)
+
+        # Keep references to each plot window so they remain open
+        self.plot_windows = []
+
+        # Timer for continuous simulation
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.run_simulation)
+
         self.setup_ui()
-        from IceMOS_sky130_simulator import IceMOS_simulator_sky130
         self.simulator = IceMOS_simulator_sky130(self.lib_file_path)
-        self.plotWin = None  # Will hold our floating plot window
 
     def setup_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
-        # Simulation type combobox.
+
         self.simTypeCombo = QtWidgets.QComboBox()
         self.simTypeCombo.addItems(["IV vs VG", "IV vs VDS"])
         layout.addWidget(QtWidgets.QLabel("Select Simulation Type:"))
         layout.addWidget(self.simTypeCombo)
-        # Simulation parameter fields.
+
+        # VG fields
         self.vgStartEdit = QtWidgets.QLineEdit("0")
         self.vgStopEdit  = QtWidgets.QLineEdit("1.8")
         self.vgStepEdit  = QtWidgets.QLineEdit("0.1")
+
+        # VDS/VSD fields
         self.vdsStartEdit = QtWidgets.QLineEdit("0")
         self.vdsStopEdit  = QtWidgets.QLineEdit("1.8")
-        self.vdsStepEdit  = QtWidgets.QLineEdit("1.0")
+        self.vdsStepEdit  = QtWidgets.QLineEdit("0.1")
+
         formLayout = QtWidgets.QFormLayout()
-        formLayout.addRow("VG Start:", self.vgStartEdit)
-        formLayout.addRow("VG Stop:",  self.vgStopEdit)
-        formLayout.addRow("VG Step:",  self.vgStepEdit)
+        formLayout.addRow("VG Start:",  self.vgStartEdit)
+        formLayout.addRow("VG Stop:",   self.vgStopEdit)
+        formLayout.addRow("VG Step:",   self.vgStepEdit)
         formLayout.addRow("VDS (or VSD) Start:", self.vdsStartEdit)
         formLayout.addRow("VDS (or VSD) Stop:",  self.vdsStopEdit)
         formLayout.addRow("VDS (or VSD) Step:",  self.vdsStepEdit)
         layout.addLayout(formLayout)
-        # Buttons for simulation.
+
+        # Buttons
         self.runOnceBtn = QtWidgets.QPushButton("Run Simulation Once")
         self.runContinuousBtn = QtWidgets.QPushButton("Start Continuous Simulation")
         self.stopBtn = QtWidgets.QPushButton("Stop Continuous Simulation")
@@ -806,116 +814,134 @@ class SimulationWindow(QtWidgets.QDialog):
         btnLayout.addWidget(self.runContinuousBtn)
         btnLayout.addWidget(self.stopBtn)
         layout.addLayout(btnLayout)
-        # Status label.
+
         self.statusLabel = QtWidgets.QLabel("")
         layout.addWidget(self.statusLabel)
-        # Connect signals.
+
         self.runOnceBtn.clicked.connect(self.run_simulation)
         self.runContinuousBtn.clicked.connect(lambda: self.timer.start(5000))
         self.stopBtn.clicked.connect(self.timer.stop)
+
         self.setLayout(layout)
 
     def run_simulation(self):
         sim_type = self.simTypeCombo.currentText()
+
         try:
             vg_start = float(self.vgStartEdit.text())
-            vg_stop  = float(self.vgStopEdit.text())
-            vg_step  = float(self.vgStepEdit.text())
+            vg_stop = float(self.vgStopEdit.text())
+            vg_step = float(self.vgStepEdit.text())
         except ValueError:
             QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VG simulation values.")
             return
 
-        # For "IV vs VG" simulation.
         if sim_type == "IV vs VG":
             output = self.simulator.simulate_iv(
                 self.device_type, bin_number=self.bin_number,
                 vgate_start=vg_start, vgate_stop=vg_stop, vgate_step=vg_step
             )
-            if not output:
-                QtWidgets.QMessageBox.warning(self, "Error", "No netlist output from simulator.")
-                return
             folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}", "results_IV_ID_vs_VG")
-            csv_filename = "IV_ID_vs_VG.csv"
-            curves = []
-            try:
-                df = pd.read_csv(os.path.join(folder, csv_filename), sep=r'\s+', header=None)
-            except Exception as e:
-                QtWidgets.QMessageBox.warning(self, "Error", f"Error reading CSV file: {e}")
+            csv_file = "IV_ID_vs_VG.csv"
+            csv_path = os.path.join(folder, csv_file)
+            if not os.path.exists(csv_path):
+                QtWidgets.QMessageBox.warning(self, "File Not Found", f"{csv_path} not found.")
                 return
-            df.columns = ["X", "Y"]
-            curves.append((df["X"].values, df["Y"].values, "Curve"))
+            try:
+                df = pd.read_csv(csv_path, sep=r'\s+', header=None)
+                df.columns = ["X", "Y"]
+                curves = [(df["X"].values, df["Y"].values, "IV vs VG")]
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, "Error", f"Error reading CSV: {e}")
+                return
+
+            title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
+            # Reuse the existing IV vs VG plot window if available.
+            if hasattr(self,
+                       'plotWin_IV_vs_VG') and self.plotWin_IV_vs_VG is not None and self.plotWin_IV_vs_VG.isVisible():
+                plot_win = self.plotWin_IV_vs_VG
+                plot_win.setWindowTitle(title)
+                plot_win.plotItem.setTitle(title)
+                plot_win.plotItem.setLabel('bottom', x_label)
+                plot_win.plotItem.setLabel('left', y_label)
+            else:
+                plot_win = PlotWindow(title, x_label, y_label)
+                self.plotWin_IV_vs_VG = plot_win
+            plot_win.update_data(curves)
+            plot_win.show()
+
         else:
             try:
                 vds_start = float(self.vdsStartEdit.text())
-                vds_stop  = float(self.vdsStopEdit.text())
-                vds_step  = float(self.vdsStepEdit.text())
+                vds_stop = float(self.vdsStopEdit.text())
+                vds_step = float(self.vdsStepEdit.text())
             except ValueError:
                 QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VDS simulation values.")
                 return
 
-            # For NMOS or PMOS, call the appropriate simulation method.
-            if self.device_type == 'nch':
+            # Distinguish NMOS vs PMOS simulation call.
+            if self.device_type == "nch":
                 output = self.simulator.simulate_id_vs_vds_sweep_vg(
                     self.device_type, bin_number=self.bin_number,
                     vgs_start=vg_start, vgs_stop=vg_stop, vgs_step=vg_step,
                     vds_start=vds_start, vds_stop=vds_stop, vds_step=vds_step
                 )
+                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
+                                      "results_IV_IDS_vs_VDS_for_VG_sweep")
+                col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
+                x_col, y_col = "V(VDS)", "I(VDSM)"
+                label_prefix = "VGS="
             else:
-                # For PMOS we assume a method simulate_is_vs_vsd_sweep_vg exists.
                 output = self.simulator.simulate_is_vs_vsd_sweep_vg(
                     self.device_type, bin_number=self.bin_number,
                     vsg_start=vg_start, vsg_stop=vg_stop, vsg_step=vg_step,
                     vsd_start=vds_start, vsd_stop=vds_stop, vsd_step=vds_step
                 )
-            # Determine results folder based on device type.
-            if self.device_type == 'nch':
-                results_path = "results_IV_IDS_vs_VDS_for_VG_sweep"
-                col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
-                x_col = "V(VDS)"
-                y_col = "I(VDSM)"
-            else:
-                results_path = "results_IV_ISD_vs_VSD_for_VG_sweep"
+                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
+                                      "results_IV_ISD_vs_VSD_for_VG_sweep")
                 col_names = ["V(VSD)", "V(VG)", "V(VSD)_dup", "I(ISD)", "V(VSD)_dup", "I(VSDM)"]
-                x_col = "V(VSD)"
-                y_col = "I(VSDM)"
-            folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}", results_path)
+                x_col, y_col = "V(VSD)", "I(VSDM)"
+                label_prefix = "VSG="
+
             csv_files = [f for f in os.listdir(folder) if f.endswith(".csv")]
             if not csv_files:
-                QtWidgets.QMessageBox.warning(self, "No Data", "No CSV data found.")
+                QtWidgets.QMessageBox.warning(self, "No Data", "No CSV files found in the sweep folder.")
                 return
             csv_files.sort()
+
             curves = []
-            for csv_file in csv_files:
-                csv_path = os.path.join(folder, csv_file)
+            for fname in csv_files:
+                path = os.path.join(folder, fname)
                 try:
-                    df = pd.read_csv(csv_path, sep=r'\s+', header=None)
+                    df_ = pd.read_csv(path, sep=r'\s+', header=None)
+                    df_.columns = col_names
+                    # Extract the sweep value from the filename.
+                    try:
+                        v_str = fname.rsplit('_', 1)[-1].replace('.csv', '')
+                    except Exception:
+                        v_str = fname
+                    label = f"{label_prefix}{v_str} V"
+                    curves.append((df_[x_col].values, df_[y_col].values, label))
                 except Exception as e:
-                    print(f"Error reading {csv_file}: {e}")
+                    print(f"Error reading {fname}: {e}")
                     continue
-                df.columns = col_names
-                # Extract legend label from file name (value after last underscore)
-                try:
-                    legend_label = csv_file.rsplit('_', 1)[-1].replace('.csv', '')
-                except Exception as e:
-                    legend_label = csv_file
-                curves.append((df[x_col].values, df[y_col].values, f"VGS = {legend_label} V"))
-        # Get figure labels.
-        title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
-        # Create or update the floating plot window.
-        if self.plotWin is None or not self.plotWin.isVisible():
-            self.plotWin = PlotWindow(title, x_label, y_label)
-        else:
-            self.plotWin.setWindowTitle(title)
-            self.plotWin.plotItem.setTitle(title)
-            self.plotWin.plotItem.setLabel('bottom', x_label)
-            self.plotWin.plotItem.setLabel('left', y_label)
-        # Update the plot with all curves.
-        self.plotWin.update_data(curves)
-        self.plotWin.show()
-        self.statusLabel.setText(f"Simulation {sim_type} run, plot updated.")
-        print("Simulation run complete, new plot window updated.")
 
+            title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
+            # Reuse the existing IV vs VDS plot window if available.
+            if hasattr(self,
+                       'plotWin_IV_vs_VDS') and self.plotWin_IV_vs_VDS is not None and self.plotWin_IV_vs_VDS.isVisible():
+                plot_win = self.plotWin_IV_vs_VDS
+                plot_win.setWindowTitle(title)
+                plot_win.plotItem.setTitle(title)
+                plot_win.plotItem.setLabel('bottom', x_label)
+                plot_win.plotItem.setLabel('left', y_label)
+            else:
+                plot_win = PlotWindow(title, x_label, y_label)
+                self.plotWin_IV_vs_VDS = plot_win
+            plot_win.update_data(curves)
+            plot_win.show()
 
+        self.statusLabel.setText(f"Simulation {sim_type} run; plot updated.")
+        print("Simulation run complete; plot window updated.")
 
 # if __name__ == '__main__':
 #     app = QtWidgets.QApplication(sys.argv)
