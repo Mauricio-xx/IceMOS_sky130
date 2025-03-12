@@ -17,12 +17,12 @@ def main():
 
     # ---------------------------------
     # Create an instance of ModelExtractor for NMOS (nch)
-    extractor_nch = ModelExtractor(original_model_file_nch, device_type='nch')
+    # extractor_nch = ModelExtractor(original_model_file_nch, device_type='nch')
 
     # Extract parameters for bin 0.
     # This will save the extracted model in:
     # circuits/nch/bin_0/bin_0_nch.model
-    extractor_nch.extract_bin_parameters(0)
+    # extractor_nch.extract_bin_parameters(0)
 
     # ---------------------------------
     # Create an instance of ModelExtractor for PMOS (pch)
@@ -31,12 +31,15 @@ def main():
     # Extract parameters for bin 1.
     # This will save the extracted model in:
     # circuits/nch/bin_0/bin_0_nch.model
-    extractor_pch.extract_bin_parameters(1)
+    # extractor_pch.extract_bin_parameters(1)
+
+    # For PMOS extraction by dimensions:
+    extractor_pch.extract_bin_parameters_by_dimensions(1.68, 0.15)
 
     # ---------------------------------
     # For NMOS extraction by dimensions:
     # Example: Extract the bin for W = 1.26 µm, L = 0.15 µm
-    extractor_nch.extract_bin_parameters_by_dimensions(1.26, 0.15)
+    # extractor_nch.extract_bin_parameters_by_dimensions(1.26, 0.15)
 
 
 if __name__ == '__main__':

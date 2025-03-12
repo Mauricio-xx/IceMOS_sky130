@@ -20,7 +20,7 @@ def main():
     print("Generating IV netlists for PMOS using bin number 10...")
     netlists_iv = generator.generate_iv_netlists(
         device_type='pch',
-        bin_number=10,
+        bin_number=1,
         vgate_start=0,
         vgate_stop=1.8,
         vgate_step=0.1
@@ -32,7 +32,7 @@ def main():
     print("Generating IV VDS netlists for PMOS using dimensions W=1.26 µm, L=0.15 µm...")
     netlists_iv_vsd = generator.generate_iv_vds_netlists(
         device_type='pch',
-        W=1.26,
+        W=1.68,
         L=0.15,
         vgs_start=0,
         vgs_stop=1.8,

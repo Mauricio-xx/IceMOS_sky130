@@ -127,8 +127,14 @@ class NetlistGeneratorSky130:
             modified_model_filename = f"bin_{bin_number}_nch_modified.lib"
             include_line_original = f'.include "./{original_model_filename}"\n'
             include_line_modified = f'.include "./{modified_model_filename}"\n'
+            temp_for_sim = 27
             iv_template = """{include_line}
 .option verbose=1
+
+*set temperature for simulation
+*if this file is 'ORIGINAL' temp is set to 27C
+*if this file is 'MODIFIED' temp is -269C (4K)
+.temp {temp_for_sim}
 
 * IV Simulation netlist for device {device_type} using {model_type} model
 * Model: {model_name}
@@ -168,8 +174,14 @@ V1_meas V1 net2 0
             modified_model_filename = f"bin_{bin_number}_pch_modified.lib"
             include_line_original = f'.include "./{original_model_filename}"\n'
             include_line_modified = f'.include "./{modified_model_filename}"\n'
+            temp_for_sim = 27
             iv_template = """{include_line}
 .option verbose=1
+
+*set temperature for simulation
+*if this file is 'ORIGINAL' temp is set to 27C
+*if this file is 'MODIFIED' temp is -269C (4K)
+.temp {temp_for_sim}
 
 * IV Simulation netlist for device {device_type} using {model_type} model
 * Model: {model_name}
@@ -214,7 +226,8 @@ op
                 L_val=L_val,
                 vgate_start=vgate_start,
                 vgate_stop=vgate_stop,
-                vgate_step=vgate_step
+                vgate_step=vgate_step,
+                temp_for_sim = 27
             )
             netlist_modified = iv_template.format(
                 include_line=include_line_modified,
@@ -225,7 +238,8 @@ op
                 L_val=L_val,
                 vgate_start=vgate_start,
                 vgate_stop=vgate_stop,
-                vgate_step=vgate_step
+                vgate_step=vgate_step,
+                temp_for_sim = -269
             )
         else:
             netlist_original = iv_template.format(
@@ -237,7 +251,8 @@ op
                 L_val=L_val,
                 vgate_start=vgate_start,
                 vgate_stop=vgate_stop,
-                vgate_step=vgate_step
+                vgate_step=vgate_step,
+                temp_for_sim = 27
             )
             netlist_modified = iv_template.format(
                 include_line=include_line_modified,
@@ -248,7 +263,8 @@ op
                 L_val=L_val,
                 vgate_start=vgate_start,
                 vgate_stop=vgate_stop,
-                vgate_step=vgate_step
+                vgate_step=vgate_step,
+                temp_for_sim = -269
             )
         output_dir = os.path.join("circuits", device_type, f"bin_{bin_number}")
         os.makedirs(output_dir, exist_ok=True)
@@ -313,8 +329,14 @@ op
             include_line_original = f'.include "./{original_model_filename}"\n'
             include_line_modified = f'.include "./{modified_model_filename}"\n'
             vds_prefix = "n_mosfet_id_vs_vsd_"
+            temp_for_sim = 27
             vds_template = """{include_line}
 .option verbose=1
+
+*set temperature for simulation
+*if this file is 'ORIGINAL' temp is set to 27C
+*if this file is 'MODIFIED' temp is -269C (4K)
+.temp {temp_for_sim}
 
 * IV VDS Simulation netlist for NMOS using {model_type} model
 * Model: {model_name}
@@ -363,8 +385,15 @@ end
             include_line_original = f'.include "./{original_model_filename}"\n'
             include_line_modified = f'.include "./{modified_model_filename}"\n'
             vds_prefix = "p_mosfet_id_vs_vsd_"
+            temp_for_sim = 27
             vds_template = """{include_line}
 .option verbose=1
+
+*set temperature for simulation
+*if this file is 'ORIGINAL' temp is set to 27C
+*if this file is 'MODIFIED' temp is -269C (4K)
+.temp {temp_for_sim}
+
 
 * IV VSD with VG sweep simulation netlist for device {device_type} using {model_type} model
 * Model: {model_name}
@@ -416,7 +445,8 @@ end
                 vds_start=vds_start,
                 vds_stop=vds_stop,
                 vds_step=vds_step,
-                vds_prefix=vds_prefix
+                vds_prefix=vds_prefix,
+                temp_for_sim = 27
             )
             netlist_modified = vds_template.format(
                 include_line=include_line_modified,
@@ -430,7 +460,8 @@ end
                 vds_start=vds_start,
                 vds_stop=vds_stop,
                 vds_step=vds_step,
-                vds_prefix=vds_prefix
+                vds_prefix=vds_prefix,
+                temp_for_sim = -269,
             )
         else:
             netlist_original = vds_template.format(
@@ -446,7 +477,8 @@ end
                 vsd_start=vsd_start,
                 vsd_stop=vsd_stop,
                 vsd_step=vsd_step,
-                vds_prefix=vds_prefix
+                vds_prefix=vds_prefix,
+                temp_for_sim = 27
             )
             netlist_modified = vds_template.format(
                 include_line=include_line_modified,
@@ -461,7 +493,8 @@ end
                 vsd_start=vsd_start,
                 vsd_stop=vsd_stop,
                 vsd_step=vsd_step,
-                vds_prefix=vds_prefix
+                vds_prefix=vds_prefix,
+                temp_for_sim = -269
             )
         output_dir = os.path.join("circuits", device_type, f"bin_{bin_number}")
         os.makedirs(output_dir, exist_ok=True)

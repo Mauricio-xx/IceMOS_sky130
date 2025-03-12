@@ -11,7 +11,7 @@ from PyQt5 import QtWidgets
 def main():
     app = QtWidgets.QApplication(sys.argv)
     # For example, calibrate PMOS bin 10:
-    window = MainWindow("pch", 10)
+    window = MainWindow("pch", 1)
     window.resize(1200, 800)
     window.show()
     sys.exit(app.exec_())

@@ -22,7 +22,7 @@ your actual simulation code (e.g. from IceMOS_sky130_simulator and model modifie
 
 import sys, os, json, re
 from PyQt5 import QtWidgets, QtCore, QtGui
-import pyqtgraph as pg
+
 
 # Import the parameter extraction function (assumed to be defined in IceMOS_sky130_param_extractor.py)
 from IceMOS_sky130_param_extractor import extract_parameters_with_values
@@ -712,12 +712,7 @@ class MainWindow(QtWidgets.QMainWindow):
             print(f"  {k}: {v}")
         QtWidgets.QMessageBox.information(self, "Calibration", "Calibration loop executed (placeholder).")
 
-import sys, os
-import pyqtgraph as pg
-import pandas as pd
-from PyQt5 import QtWidgets, QtCore
 
-from IceMOS_sky130_simulator import IceMOS_simulator_sky130
 
 def get_plot_labels(device_type, sim_type):
     device_type = device_type.lower()
@@ -733,6 +728,32 @@ def get_plot_labels(device_type, sim_type):
             return ("PMOS: ISD vs VSD (VSG sweep)", "VSD (V)", "ISD (A)")
 
 
+
+from PyQt5 import QtWidgets, QtCore, QtGui
+import pyqtgraph as pg
+pg.setConfigOption('useOpenGL', False)
+import pandas as pd
+import os, re
+
+class ColumnSelectionDialog(QtWidgets.QDialog):
+    def __init__(self, columns, title="Select Columns", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        layout = QtWidgets.QFormLayout(self)
+        self.xCombo = QtWidgets.QComboBox()
+        self.xCombo.addItems(columns)
+        self.yCombo = QtWidgets.QComboBox()
+        self.yCombo.addItems(columns)
+        layout.addRow("X-Axis Column:", self.xCombo)
+        layout.addRow("Y-Axis Column:", self.yCombo)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        layout.addWidget(buttons)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+    def getSelections(self):
+        return self.xCombo.currentText(), self.yCombo.currentText()
+
 class PlotWindow(pg.GraphicsLayoutWidget):
     def __init__(self, title, x_label, y_label, parent=None):
         super().__init__(parent)
@@ -740,25 +761,28 @@ class PlotWindow(pg.GraphicsLayoutWidget):
         self.plotItem = self.addPlot(title=title)
         self.plotItem.showGrid(x=True, y=True)
         self.plotItem.setLabel('bottom', x_label)
-        self.plotItem.setLabel('left',   y_label)
-        # Add a legend if you want multiple curves
+        self.plotItem.setLabel('left', y_label)
+        # Add a legend
         self.legend = self.plotItem.addLegend(offset=(10, 10))
 
     def update_data(self, curves):
         """
-        curves: a list of (x_data, y_data, label).
-        Clears old data and plots each curve with a label.
+        curves: a list of tuples that can be:
+          (x_data, y_data, label) --> uses default color,
+          or (x_data, y_data, label, color) --> uses the specified color.
+        Clears the plot and plots all curves.
         """
         self.plotItem.clear()
-        # Re-add the legend so old entries are gone
         self.legend = self.plotItem.addLegend(offset=(10, 10))
-        for (x, y, label) in curves:
-            self.plotItem.plot(x, y,
-                               pen=pg.mkPen(width=2),
-                               symbol='o', symbolSize=5,
-                               name=label)
-        # Force an update
-        # QtCore.QTimer.singleShot(0, self.plotItem.update)
+        for curve in curves:
+            if len(curve) == 4:
+                x, y, label, color = curve
+                pen = pg.mkPen(color=color, width=2)
+            else:
+                x, y, label = curve
+                pen = pg.mkPen(width=2)
+            self.plotItem.plot(x, y, pen=pen, symbol='o', symbolSize=5, name=label)
+
 
 class SimulationWindow(QtWidgets.QDialog):
     def __init__(self, device_type, bin_number, lib_file_path, parent=None):
@@ -768,19 +792,20 @@ class SimulationWindow(QtWidgets.QDialog):
         self.lib_file_path = lib_file_path
         self.setWindowTitle("Simulation Configuration")
 
-        # Keep references to each plot window so they remain open
-        self.plot_windows = []
+        # Variables to store lab data
+        self.lab_data_iv_vs_vg = None  # For IV vs VG (a single curve)
+        self.lab_data_iv_vs_vds = []  # For IV vs VDS/VSD (list of curves)
 
         # Timer for continuous simulation
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.run_simulation)
 
         self.setup_ui()
+        from IceMOS_sky130_simulator import IceMOS_simulator_sky130
         self.simulator = IceMOS_simulator_sky130(self.lib_file_path)
 
     def setup_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
-
         self.simTypeCombo = QtWidgets.QComboBox()
         self.simTypeCombo.addItems(["IV vs VG", "IV vs VDS"])
         layout.addWidget(QtWidgets.QLabel("Select Simulation Type:"))
@@ -788,31 +813,33 @@ class SimulationWindow(QtWidgets.QDialog):
 
         # VG fields
         self.vgStartEdit = QtWidgets.QLineEdit("0")
-        self.vgStopEdit  = QtWidgets.QLineEdit("1.8")
-        self.vgStepEdit  = QtWidgets.QLineEdit("0.1")
-
+        self.vgStopEdit = QtWidgets.QLineEdit("1.8")
+        self.vgStepEdit = QtWidgets.QLineEdit("0.1")
         # VDS/VSD fields
         self.vdsStartEdit = QtWidgets.QLineEdit("0")
-        self.vdsStopEdit  = QtWidgets.QLineEdit("1.8")
-        self.vdsStepEdit  = QtWidgets.QLineEdit("0.1")
+        self.vdsStopEdit = QtWidgets.QLineEdit("1.8")
+        self.vdsStepEdit = QtWidgets.QLineEdit("0.1")
 
         formLayout = QtWidgets.QFormLayout()
-        formLayout.addRow("VG Start:",  self.vgStartEdit)
-        formLayout.addRow("VG Stop:",   self.vgStopEdit)
-        formLayout.addRow("VG Step:",   self.vgStepEdit)
+        formLayout.addRow("VG Start:", self.vgStartEdit)
+        formLayout.addRow("VG Stop:", self.vgStopEdit)
+        formLayout.addRow("VG Step:", self.vgStepEdit)
         formLayout.addRow("VDS (or VSD) Start:", self.vdsStartEdit)
-        formLayout.addRow("VDS (or VSD) Stop:",  self.vdsStopEdit)
-        formLayout.addRow("VDS (or VSD) Step:",  self.vdsStepEdit)
+        formLayout.addRow("VDS (or VSD) Stop:", self.vdsStopEdit)
+        formLayout.addRow("VDS (or VSD) Step:", self.vdsStepEdit)
         layout.addLayout(formLayout)
 
-        # Buttons
+        # Simulation buttons
         self.runOnceBtn = QtWidgets.QPushButton("Run Simulation Once")
         self.runContinuousBtn = QtWidgets.QPushButton("Start Continuous Simulation")
         self.stopBtn = QtWidgets.QPushButton("Stop Continuous Simulation")
+        # New button to load lab data
+        self.loadLabDataBtn = QtWidgets.QPushButton("Load Lab Data")
         btnLayout = QtWidgets.QHBoxLayout()
         btnLayout.addWidget(self.runOnceBtn)
         btnLayout.addWidget(self.runContinuousBtn)
         btnLayout.addWidget(self.stopBtn)
+        btnLayout.addWidget(self.loadLabDataBtn)
         layout.addLayout(btnLayout)
 
         self.statusLabel = QtWidgets.QLabel("")
@@ -821,21 +848,88 @@ class SimulationWindow(QtWidgets.QDialog):
         self.runOnceBtn.clicked.connect(self.run_simulation)
         self.runContinuousBtn.clicked.connect(lambda: self.timer.start(5000))
         self.stopBtn.clicked.connect(self.timer.stop)
+        self.loadLabDataBtn.clicked.connect(self.load_lab_data)
 
         self.setLayout(layout)
 
+    def load_lab_data(self):
+        """Loads lab data and allows the user to choose which columns to use.
+           The flow is different for IV vs VG and IV vs VDS."""
+        sim_type = self.simTypeCombo.currentText()
+        if sim_type == "IV vs VG":
+            file_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Lab CSV Data", "", "CSV Files (*.csv)")
+            if file_path:
+                try:
+                    df = pd.read_csv(file_path)
+                except Exception as e:
+                    QtWidgets.QMessageBox.warning(self, "Error", f"Could not load CSV file: {e}")
+                    return
+                columns = df.columns.tolist()
+                dlg = ColumnSelectionDialog(columns, title="Select Columns for IV vs VG", parent=self)
+                if dlg.exec_() == QtWidgets.QDialog.Accepted:
+                    x_col, y_col = dlg.getSelections()
+                    if self.device_type == 'nch':
+                        x_data = df[x_col].values
+                        y_data = df[y_col].values
+                    else:  # pmos, handle plot orientation
+                        x_data = df[x_col].values * -1
+                        y_data = df[y_col].values * -1
+
+                    # Save the lab data (a single curve) with blue color.
+                    self.lab_data_iv_vs_vg = [(x_data, y_data, "Lab Data (IV vs VG)", "b")]
+                    QtWidgets.QMessageBox.information(self, "Data Loaded", "Lab data loaded for IV vs VG.")
+        else:  # For IV vs VDS/VSD
+            file_paths, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Select Lab CSV Files", "",
+                                                                   "CSV Files (*.csv)")
+            if file_paths:
+                try:
+                    df_sample = pd.read_csv(file_paths[0])
+                except Exception as e:
+                    QtWidgets.QMessageBox.warning(self, "Error", f"Could not load CSV file: {e}")
+                    return
+                columns = df_sample.columns.tolist()
+                dlg = ColumnSelectionDialog(columns, title="Select Columns for IV vs VDS", parent=self)
+                if dlg.exec_() == QtWidgets.QDialog.Accepted:
+                    x_col, y_col = dlg.getSelections()
+                    lab_curves = []
+                    for path in file_paths:
+                        try:
+                            if self.device_type == 'nch':
+                                df_i = pd.read_csv(path)
+                                x_data = df_i[x_col].values
+                                y_data = df_i[y_col].values
+                            else: #pmos
+                                df_i = pd.read_csv(path)
+                                x_data = df_i[x_col].values *-1  #just to adapt lab data to our netlist sim
+                                y_data = df_i[y_col].values *-1
+                            # Extract the VG value from the file name (expects 'VG_<value>.csv')
+                            m = re.search(r'VG_(-?\d+\.?\d*)', path)
+                            if m:
+                                vg_val = float(m.group(1))
+                                # For PMOS, multiply by -1
+                                if self.device_type == "pch":
+                                    vg_val = -vg_val
+                            else:
+                                vg_val = None
+                            label = f"VGS = {vg_val}" if vg_val is not None and self.device_type == "nch" else (
+                                f"VSG = {vg_val}" if vg_val is not None else "Lab")
+                            lab_curves.append((x_data, y_data, label, "b"))
+                        except Exception as e:
+                            print(f"Error loading {path}: {e}")
+                    self.lab_data_iv_vs_vds = lab_curves
+                    QtWidgets.QMessageBox.information(self, "Data Loaded", "Lab data loaded for IV vs VDS.")
+
     def run_simulation(self):
         sim_type = self.simTypeCombo.currentText()
-
-        try:
-            vg_start = float(self.vgStartEdit.text())
-            vg_stop = float(self.vgStopEdit.text())
-            vg_step = float(self.vgStepEdit.text())
-        except ValueError:
-            QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VG simulation values.")
-            return
-
         if sim_type == "IV vs VG":
+            try:
+                vg_start = float(self.vgStartEdit.text())
+                vg_stop = float(self.vgStopEdit.text())
+                vg_step = float(self.vgStepEdit.text())
+            except ValueError:
+                QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VG simulation values.")
+                return
+
             output = self.simulator.simulate_iv(
                 self.device_type, bin_number=self.bin_number,
                 vgate_start=vg_start, vgate_stop=vg_stop, vgate_step=vg_step
@@ -849,13 +943,19 @@ class SimulationWindow(QtWidgets.QDialog):
             try:
                 df = pd.read_csv(csv_path, sep=r'\s+', header=None)
                 df.columns = ["X", "Y"]
-                curves = [(df["X"].values, df["Y"].values, "IV vs VG")]
+                sim_curve = (df["X"].values, df["Y"].values, "Simulation (IV vs VG)", "w")
             except Exception as e:
                 QtWidgets.QMessageBox.warning(self, "Error", f"Error reading CSV: {e}")
                 return
 
+            # Combine simulation data with lab data if available
+            if self.lab_data_iv_vs_vg is not None:
+                curves = [sim_curve] + self.lab_data_iv_vs_vg
+            else:
+                curves = [sim_curve]
+
+            # Assume get_plot_labels is defined elsewhere as in the original code.
             title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
-            # Reuse the existing IV vs VG plot window if available.
             if hasattr(self,
                        'plotWin_IV_vs_VG') and self.plotWin_IV_vs_VG is not None and self.plotWin_IV_vs_VG.isVisible():
                 plot_win = self.plotWin_IV_vs_VG
@@ -869,16 +969,18 @@ class SimulationWindow(QtWidgets.QDialog):
             plot_win.update_data(curves)
             plot_win.show()
 
-        else:
+        else:  # For IV vs VDS/VSD
             try:
+                vg_start = float(self.vgStartEdit.text())
+                vg_stop = float(self.vgStopEdit.text())
+                vg_step = float(self.vgStepEdit.text())
                 vds_start = float(self.vdsStartEdit.text())
                 vds_stop = float(self.vdsStopEdit.text())
                 vds_step = float(self.vdsStepEdit.text())
             except ValueError:
-                QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VDS simulation values.")
+                QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check simulation values.")
                 return
 
-            # Distinguish NMOS vs PMOS simulation call.
             if self.device_type == "nch":
                 output = self.simulator.simulate_id_vs_vds_sweep_vg(
                     self.device_type, bin_number=self.bin_number,
@@ -908,25 +1010,29 @@ class SimulationWindow(QtWidgets.QDialog):
                 return
             csv_files.sort()
 
-            curves = []
+            sim_curves = []
             for fname in csv_files:
                 path = os.path.join(folder, fname)
                 try:
                     df_ = pd.read_csv(path, sep=r'\s+', header=None)
                     df_.columns = col_names
-                    # Extract the sweep value from the filename.
                     try:
                         v_str = fname.rsplit('_', 1)[-1].replace('.csv', '')
                     except Exception:
                         v_str = fname
                     label = f"{label_prefix}{v_str} V"
-                    curves.append((df_[x_col].values, df_[y_col].values, label))
+                    sim_curves.append((df_[x_col].values, df_[y_col].values, label, "w"))
                 except Exception as e:
                     print(f"Error reading {fname}: {e}")
                     continue
 
+            # Combine simulation curves with lab data if available
+            if self.lab_data_iv_vs_vds:
+                curves = sim_curves + self.lab_data_iv_vs_vds
+            else:
+                curves = sim_curves
+
             title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
-            # Reuse the existing IV vs VDS plot window if available.
             if hasattr(self,
                        'plotWin_IV_vs_VDS') and self.plotWin_IV_vs_VDS is not None and self.plotWin_IV_vs_VDS.isVisible():
                 plot_win = self.plotWin_IV_vs_VDS
@@ -943,10 +1049,4 @@ class SimulationWindow(QtWidgets.QDialog):
         self.statusLabel.setText(f"Simulation {sim_type} run; plot updated.")
         print("Simulation run complete; plot window updated.")
 
-# if __name__ == '__main__':
-#     app = QtWidgets.QApplication(sys.argv)
-#     # Example usage: for PMOS, bin 10. Update the file path as appropriate.
-#     simWin = SimulationWindow("pch", 10, "/path/to/pch/bin_10/bin_10_pch_original.lib")
-#     simWin.resize(600, 400)
-#     simWin.show()
-#     sys.exit(app.exec_())
+
