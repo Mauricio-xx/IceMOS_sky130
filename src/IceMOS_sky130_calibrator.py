@@ -635,10 +635,18 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             QtWidgets.QMessageBox.information(self, "Saved", "Calibration session saved successfully.")
 
     def load_calibration(self):
-        filename, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Load Calibration Session", "", "JSON Files (*.json)")
+        filename, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Load Calibration Session", "", "JSON Files (*.json)"
+        )
         if filename:
             with open(filename, "r") as f:
-                self.parameters = json.load(f)
+                loaded_data = json.load(f)
+
+            # Clear the existing dictionary instead of reassigning a new dict.
+            self.parameters.clear()
+            for k, v in loaded_data.items():
+                self.parameters[k] = v
+
             self.populate_parameters()
             QtWidgets.QMessageBox.information(self, "Loaded", "Calibration session loaded successfully.")
 
