@@ -990,6 +990,20 @@ class SimulationWindow(QtWidgets.QDialog):
                 return
 
             if self.device_type == "nch":
+
+                # Remove old CSV files from the results folder
+                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
+                                      "results_IV_IDS_vs_VDS_for_VG_sweep")
+
+                # be sure that folder exist
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
+                    
+                for fname in os.listdir(folder):
+                    if fname.endswith(".csv") or fname.endswith(".raw"):
+                        os.remove(os.path.join(folder, fname))
+
+                # Run sim
                 output = self.simulator.simulate_id_vs_vds_sweep_vg(
                     self.device_type, bin_number=self.bin_number,
                     vgs_start=vg_start, vgs_stop=vg_stop, vgs_step=vg_step,
@@ -997,10 +1011,25 @@ class SimulationWindow(QtWidgets.QDialog):
                 )
                 folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
                                       "results_IV_IDS_vs_VDS_for_VG_sweep")
+
+
                 col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
                 x_col, y_col = "V(VDS)", "I(VDSM)"
                 label_prefix = "VGS="
             else:
+                # Remove old CSV files from the results folder
+                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
+                                      "results_IV_ISD_vs_VSD_for_VG_sweep")
+
+                # be sure that folder exist
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
+
+                for fname in os.listdir(folder):
+                    if fname.endswith(".csv") or fname.endswith(".raw"):
+                        os.remove(os.path.join(folder, fname))
+
+                # Run sim
                 output = self.simulator.simulate_is_vs_vsd_sweep_vg(
                     self.device_type, bin_number=self.bin_number,
                     vsg_start=vg_start, vsg_stop=vg_stop, vsg_step=vg_step,

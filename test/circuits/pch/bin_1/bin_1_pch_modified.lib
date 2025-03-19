@@ -101,7 +101,7 @@
 + rswmin=0.0
 * Subthreshold Current Parameters
 + voff=-0.2512318030812
-+ nfactor=295.3691325
++ nfactor=613.7663674999999
 + up=0.0
 + ud=0.0
 + lp=1.0

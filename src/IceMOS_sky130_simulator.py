@@ -54,7 +54,7 @@ class IceMOS_simulator_sky130:
         while process.poll() is None:
             sys.stdout.write("\rSimulating... " + spinner[i % len(spinner)])
             sys.stdout.flush()
-            time.sleep(0.1)
+            time.sleep(0.05)
             i += 1
         sys.stdout.write("\rSimulation complete.            \n")
         sys.stdout.flush()
@@ -146,6 +146,7 @@ class IceMOS_simulator_sky130:
         :param vsd_step: Voltage step for the VSD sweep.
         :return: The stdout output from the simulation.
         """
+
         netlists = self.generator.generate_iv_vds_netlists(
             device_type=device_type, bin_number=bin_number, W=W, L=L,
             vgs_start=vsg_start, vgs_stop=vsg_stop, vgs_step=vsg_step,
