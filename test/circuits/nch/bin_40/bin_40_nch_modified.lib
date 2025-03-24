@@ -58,10 +58,10 @@
 + rsh=1
 * Threshold Voltage Parameters
 *(mismatch parameter sky130_fd_pr__nfet_01v8__vth0_slope_spectre)
-+ vth0=0.5510780888
-+ k1=0.0812012191232
-+ k2=-0.14006
-+ k3=2.18018
++ vth0=0.6731507652000002
++ k1=0.109938
++ k2=-0.1166111548
++ k3=1.03828
 + dvt0=0.0
 + dvt1=0.53
 + dvt2=-0.032
@@ -78,19 +78,19 @@
 + dvtp0=0.0
 + dvtp1=0.0
 * Mobility Parameters
-+ vsat=206294.70979999998
-+ ua=0.0
-+ ub=0.0
-+ uc=0.0
-+ rdsw=39.230509919999996
++ vsat=270890.1294
++ ua=-1.1926e-009
++ ub=2.0811e-018
++ uc=6.8253e-11
++ rdsw=92.6553544
 + prwb=0.0
 + prwg=0.021507
 + wr=1.0
-+ u0=0.03879799404
-+ a0=1.5
++ u0=0.03409776683
++ a0=1.5388499999999998
 + keta=-0.0924
-+ a1=0.0
-+ a2=0.4882942055838001
++ a1=-0.1086
++ a2=0.5336382626946001
 + ags=1.25
 + b0=0
 + b1=0
@@ -103,9 +103,9 @@
 + rswmin=0.0
 * Subthreshold Current Parameters
 *(mismatch parameter sky130_fd_pr__nfet_01v8__voff_slope_spectre)
-+ voff=-0.27326305219999997
++ voff=-0.2136334573
 *(mismatch parameter sky130_fd_pr__nfet_01v8__nfactor_slope_spectre)
-+ nfactor=40.05193758
++ nfactor=13.0
 + up=0.0
 + ud=0.0
 + lp=1.0
@@ -122,7 +122,7 @@
 + voffl=5.8197729e-9
 + minv=0.0
 * Rout Parameters
-+ pclm=0.071885
++ pclm=0.16400850290000002
 + pdiblc1=0.35697215
 + pdiblc2=0.0084061121
 + pdiblcb=-0.10329577
@@ -171,7 +171,7 @@
 + kt2=0.0
 + at=0.0
 + ute=0.0
-+ ua1=0.0
++ ua1=-2.3847336e-11
 + ub1=0.0
 + uc1=1.4718625e-10
 + kt1l=0.0
