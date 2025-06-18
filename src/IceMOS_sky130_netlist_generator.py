@@ -133,7 +133,7 @@ class NetlistGeneratorSky130:
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
-*if this file is 'MODIFIED' temp is -269C (4K)
+*if this file is 'MODIFIED' temp is -220 (approx. 50K, SS saturation)
 .temp {temp_for_sim}
 
 * IV Simulation netlist for device {device_type} using {model_type} model
@@ -180,7 +180,7 @@ V1_meas V1 net2 0
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
-*if this file is 'MODIFIED' temp is -269C (4K)
+*if this file is 'MODIFIED' temp is -220 (approx. 50K, SS saturation)
 .temp {temp_for_sim}
 
 * IV Simulation netlist for device {device_type} using {model_type} model
@@ -239,7 +239,7 @@ op
                 vgate_start=vgate_start,
                 vgate_stop=vgate_stop,
                 vgate_step=vgate_step,
-                temp_for_sim = -269
+                temp_for_sim = -220
             )
         else:
             netlist_original = iv_template.format(
@@ -264,7 +264,7 @@ op
                 vgate_start=vgate_start,
                 vgate_stop=vgate_stop,
                 vgate_step=vgate_step,
-                temp_for_sim = -269
+                temp_for_sim = -220
             )
         output_dir = os.path.join("circuits", device_type, f"bin_{bin_number}")
         os.makedirs(output_dir, exist_ok=True)
@@ -335,7 +335,7 @@ op
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
-*if this file is 'MODIFIED' temp is -269C (4K)
+*if this file is 'MODIFIED' temp is -220 (approx. 50K, SS saturation)
 .temp {temp_for_sim}
 
 * IV VDS Simulation netlist for NMOS using {model_type} model
@@ -391,7 +391,7 @@ end
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
-*if this file is 'MODIFIED' temp is -269C (4K)
+*if this file is 'MODIFIED' temp is -220 (approx. 50K, SS saturation)
 .temp {temp_for_sim}
 
 
@@ -461,7 +461,7 @@ end
                 vds_stop=vds_stop,
                 vds_step=vds_step,
                 vds_prefix=vds_prefix,
-                temp_for_sim = -269,
+                temp_for_sim = -220,
             )
         else:
             netlist_original = vds_template.format(
@@ -494,7 +494,7 @@ end
                 vsd_stop=vsd_stop,
                 vsd_step=vsd_step,
                 vds_prefix=vds_prefix,
-                temp_for_sim = -269
+                temp_for_sim = -220
             )
         output_dir = os.path.join("circuits", device_type, f"bin_{bin_number}")
         os.makedirs(output_dir, exist_ok=True)
