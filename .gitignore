@@ -9,3 +9,5 @@ build/
 dist/
 SESSION_LOG.md
 output/
+*.raw
+*.pdf
