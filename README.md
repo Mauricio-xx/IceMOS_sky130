@@ -41,7 +41,9 @@ appropriate bin, for example `--bin 1`.
    separate copy of the supplied full model file. Other bins and expression
    suffixes remain unchanged. The input file is never overwritten.
 
-Launching a workspace again preserves its modified bin model. The GUI also
+Launching a workspace again preserves its modified bin model and recovers its
+changed numeric parameters. Removing a parameter from the selection restores its
+source value on the next apply. The GUI also
 supports opening previously extracted bins through the Python `MainWindow` API;
 without a full source model path, its export contains only that extracted bin.
 

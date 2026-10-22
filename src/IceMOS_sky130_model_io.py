@@ -43,7 +43,10 @@ def parameters(text):
 def numeric_value(value):
     if isinstance(value, bool):
         raise ValueError('Calibration values must be finite numbers')
-    number = float(value)
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError('Calibration values must be finite numbers') from error
     if not math.isfinite(number):
         raise ValueError('Calibration values must be finite numbers')
     return format(number, '.17g')

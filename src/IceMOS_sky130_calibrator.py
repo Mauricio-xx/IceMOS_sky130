@@ -397,10 +397,8 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             current = float(values["value"])
 
             # Retrieve the default value from default_parameters if available
-            if param in self.default_parameters and isinstance(self.default_parameters[param], dict):
-                default_val = float(self.default_parameters[param]["value"])
-            else:
-                default_val = current
+            default = self.default_parameters.get(param, current)
+            default_val = float(default["value"] if isinstance(default, dict) else default)
 
             # Compute min and max if not already set
             if "min" not in values or "max" not in values:
@@ -689,8 +687,16 @@ class MainWindow(QtWidgets.QMainWindow):
                                           f"bin_{bin_number}_{self.device_type}_original.lib")
         from IceMOS_sky130_param_extractor import extract_parameters_with_values
         self.available_parameters = extract_parameters_with_values(self.lib_file_path)
-        self.default_parameters = {}  # start empty
-        self.current_parameters = {}  # start empty
+        self.default_parameters = {}
+        self.current_parameters = {}
+        modified = self.lib_file_path.replace("_original.lib", "_modified.lib")
+        if os.path.exists(modified):
+            # Recover numeric deltas so reopening and exporting use the same state.
+            for name, value in extract_parameters_with_values(modified).items():
+                default = self.available_parameters.get(name)
+                if isinstance(value, (float, int)) and isinstance(default, (float, int)) and value != default:
+                    self.current_parameters[name] = {"value": value}
+                    self.default_parameters[name] = default
         self.init_ui()
 
     def init_ui(self):
@@ -721,14 +727,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.exportButton.clicked.connect(self.export_calibrated_model)
 
     def update_modified_lib(self, checked=False, notify=True):
-        from IceMOS_sky130_param_handler import ModelModifier
-        from IceMOS_sky130_pdk_exporter import calibration_values
-        if not self.current_parameters:
-            return True
+        from pathlib import Path
+        from IceMOS_sky130_model_io import atomic_write
+        from IceMOS_sky130_pdk_exporter import export_calibrated_model
         try:
             modified = self.lib_file_path.replace("_original.lib", "_modified.lib")
-            modifier = ModelModifier(self.lib_file_path, modified, self.device_type)
-            modifier.modify_parameters(self.bin_number, calibration_values(self.current_parameters))
+            if self.current_parameters:
+                export_calibrated_model(self.lib_file_path, modified, self.device_type,
+                                        {self.bin_number: self.current_parameters})
+            else:
+                atomic_write(modified, Path(self.lib_file_path).read_text())
         except (OSError, ValueError, KeyError) as error:
             QtWidgets.QMessageBox.warning(self, "Model Update", str(error))
             return False

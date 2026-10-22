@@ -55,7 +55,7 @@ def test_exact_bin_and_expression_preservation(tmp_path):
     assert output.read_bytes() == before
 
 
-@pytest.mark.parametrize('value', [float('nan'), float('inf'), True, '0.5 extra'])
+@pytest.mark.parametrize('value', [float('nan'), float('inf'), True, None, '0.5 extra'])
 def test_invalid_values_cannot_change_model(value):
     with pytest.raises(ValueError):
         patch_bin(MODEL, 'nch', 1, {'vth0': value})

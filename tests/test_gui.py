@@ -93,3 +93,28 @@ def test_gui_runs_real_simulation_and_updates_both_plots(tmp_path, monkeypatch, 
     simulation.close()
     window.close()
     app.processEvents()
+
+
+def test_reopened_calibration_recovers_deltas_and_removal_restores_source(tmp_path, monkeypatch):
+    from IceMOS_sky130_calibrator import MainWindow
+    from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    monkeypatch.chdir(tmp_path)
+    source = Path(__file__).resolve().parents[1] / 'pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice'
+    extractor = ModelExtractor(source)
+    extractor.extract_bin_parameters(40)
+    window = MainWindow('nch', 40)
+    window.current_parameters['vth0'] = {'value': 0.75}
+    assert window.update_modified_lib(notify=False)
+    window.close()
+    # Extraction on a second launch retains the existing modified model.
+    extractor.extract_bin_parameters(40)
+    reopened = MainWindow('nch', 40)
+    assert reopened.current_parameters['vth0']['value'] == pytest.approx(0.75)
+    assert reopened.update_modified_lib(notify=False)
+    reopened.current_parameters.clear()
+    assert reopened.update_modified_lib(notify=False)
+    folder = Path('circuits/nch/bin_40')
+    assert (folder / 'bin_40_nch_modified.lib').read_text() == (folder / 'bin_40_nch_original.lib').read_text()
+    reopened.close()
+    app.processEvents()
