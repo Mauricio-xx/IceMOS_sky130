@@ -1,8 +1,6 @@
 import os
-import os
 import subprocess
 import sys
-import time
 from IceMOS_sky130_netlist_generator import NetlistGeneratorSky130
 
 
@@ -39,37 +37,18 @@ class IceMOS_simulator_sky130:
         :return: The stdout output of the simulation.
         :raises RuntimeError: If the simulation fails.
         """
-        # Convert netlist_path to an absolute path
         netlist_path = os.path.abspath(netlist_path)
-        cmd = ["ngspice", "-b", netlist_path]
-        netlist_dir = os.path.dirname(netlist_path)
-        print(f"Running simulation with command: {' '.join(cmd)}")
-        print(f"Simulation working directory: {netlist_dir}")
-        
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   universal_newlines=True, cwd=netlist_dir)
-        
-        spinner = ['-', '\\', '|', '/']
-        i = 0
-        while process.poll() is None:
-            sys.stdout.write("\rSimulating... " + spinner[i % len(spinner)])
-            sys.stdout.flush()
-            time.sleep(0.05)
-            i += 1
-        sys.stdout.write("\rSimulation complete.            \n")
-        sys.stdout.flush()
-        
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            print("Simulation error:")
-            print(stderr)
-            raise RuntimeError("Netlist simulation failed.")
-        else:
-            print("ngspice stdout:")
-            print(stdout)
-            print("ngspice stderr:")
-            print(stderr)
-        return stdout
+        try:
+            process = subprocess.run(
+                ["ngspice", "-n", "-b", netlist_path], capture_output=True, text=True,
+                cwd=os.path.dirname(netlist_path), timeout=120, check=False)
+        except FileNotFoundError as error:
+            raise RuntimeError("ngspice is not installed or is not on PATH") from error
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError("ngspice exceeded the 120 second timeout") from error
+        if process.returncode or "Error:" in process.stderr:
+            raise RuntimeError("Netlist simulation failed:\n" + process.stderr + process.stdout)
+        return process.stdout
 
     def simulate_iv(self, device_type, bin_number=None, W=None, L=None,
                     vgate_start=0, vgate_stop=1.8, vgate_step=0.1):

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icemos-sky130"
+version = "0.2.0"
+description = "Measurement import, simulation and calibration tools for the SKY130 open PDK"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["PyQt5>=5.15", "pyqtgraph>=0.13", "pandas>=2", "matplotlib>=3.7"]
+test = ["pytest>=8"]
+
+[project.scripts]
+icemos-sky130 = "IceMOS_sky130_cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = [
+  "IceMOS_sky130_cli", "IceMOS_sky130_calibrator",
+  "IceMOS_sky130_circuit_model_extractor", "IceMOS_sky130_model_io",
+  "IceMOS_sky130_mdm_parser", "IceMOS_sky130_pdk_exporter",
+  "IceMOS_sky130_netlist_generator", "IceMOS_sky130_param_extractor",
+  "IceMOS_sky130_param_handler", "IceMOS_sky130_pdk_parser",
+  "IceMOS_sky130_simulator",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

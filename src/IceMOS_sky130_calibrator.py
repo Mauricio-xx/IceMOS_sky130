@@ -16,8 +16,7 @@ Requirements:
     - PyQtGraph
     - JSON for calibration session save/load
 
-Note: This code uses placeholder functions for simulation and file updating. You should integrate
-your actual simulation code (e.g. from IceMOS_sky130_simulator and model modifier modules) as needed.
+Supports measurement import, manual calibration, simulation and model export.
 """
 
 import sys, os, json, re
@@ -428,10 +427,10 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             scale = 1e6 if range_width == 0 else desired_int_range / range_width
 
             slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-            slider.setMinimum(round(min_val * scale))
-            slider.setMaximum(round(max_val * scale))
-            slider.setValue(round(current * scale))
-            tick_interval = (round(max_val * scale) - round(min_val * scale)) // 10
+            slider.setMinimum(0)
+            slider.setMaximum(desired_int_range)
+            slider.setValue(0)
+            tick_interval = desired_int_range // 10
             slider.setTickInterval(tick_interval if tick_interval > 0 else 1)
             slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
 
@@ -466,13 +465,12 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             defaultLabel.setStyleSheet("color: #aaaaaa;")  # Dimmer text for default values
 
             # Connect the "Set" buttons:
-            setMinBtn.clicked.connect(lambda _, p=param, val=minEdit.value(): self.set_min_value(p, val))
-            setMaxBtn.clicked.connect(lambda _, p=param, val=maxEdit.value(): self.set_max_value(p, val))
+            setMinBtn.clicked.connect(lambda _, p=param, edit=minEdit: self.set_min_value(p, edit.value()))
+            setMaxBtn.clicked.connect(lambda _, p=param, edit=maxEdit: self.set_max_value(p, edit.value()))
             setCurrentBtn.clicked.connect(
                 lambda _, p=param, edit=manualCurrentEdit: self.update_parameter_from_text(p, edit.text()))
 
-            slider.valueChanged.connect(lambda val, s=spin, sc=scale: s.setValue(val / sc))
-            slider.valueChanged.connect(lambda val, key=param, sc=scale: self.update_parameter(key, val / sc))
+            slider.valueChanged.connect(lambda val, key=param: self.slider_changed(key, val))
 
             container = QtWidgets.QWidget()
             h_layout = QtWidgets.QHBoxLayout(container)
@@ -507,8 +505,10 @@ class ParameterTunerWindow(QtWidgets.QWidget):
         # Note: our controls tuple now has 8 items.
         slider, spin, minEdit, maxEdit, manualCurrentEdit, _, _, _ = self.controls[param]
 
-        new_min = minEdit.value()
-        new_max = maxEdit.value()
+        new_min = self.parameters[param]["min"]
+        new_max = self.parameters[param]["max"]
+        minEdit.setValue(new_min)
+        maxEdit.setValue(new_max)
         if new_min > new_max:
             new_min, new_max = new_max, new_min
             minEdit.blockSignals(True)
@@ -568,8 +568,17 @@ class ParameterTunerWindow(QtWidgets.QWidget):
         self.parameters[param]["min"] = new_min
         self.parameters[param]["max"] = new_max
         self.parameters[param]["value"] = cur_val
+        manualCurrentEdit.setText(f"{cur_val:.9g}")
+        slider.setProperty("valueScale", scale)
 
         
+
+    def slider_changed(self, param, position):
+        slider, spin, _, _, manual, *_ = self.controls[param]
+        value = position / slider.property("valueScale")
+        self.update_parameter(param, value)
+        spin.setValue(value)
+        manual.setText(f"{value:.9g}")
 
     def spin_changed(self, param, val):
         # user changed the spin box => store val, then re-sync
@@ -584,13 +593,16 @@ class ParameterTunerWindow(QtWidgets.QWidget):
 
     def update_parameter_from_text(self, param, text):
         try:
-            new_val = float(text)
+            from IceMOS_sky130_model_io import numeric_value
+            new_val = float(numeric_value(text))
         except ValueError:
             QtWidgets.QMessageBox.warning(self, "Invalid Input", f"'{text}' is not a valid number for {param}.")
             return
         if param not in self.controls:
             return
         self.parameters[param]["value"] = new_val
+        self.parameters[param]["min"] = min(self.parameters[param]["min"], new_val)
+        self.parameters[param]["max"] = max(self.parameters[param]["max"], new_val)
         # Call sync_parameter_ui to update only this parameter's controls.
         self.sync_parameter_ui(param)
         print(f"{param} updated manually to {new_val}")
@@ -613,18 +625,17 @@ class ParameterTunerWindow(QtWidgets.QWidget):
         param, ok = QtWidgets.QInputDialog.getText(self, "Remove Parameter", "Enter parameter name to remove:")
         if ok and param in self.parameters:
             del self.parameters[param]
-            del self.default_parameters[param]
+            self.default_parameters.pop(param, None)
             self.populate_parameters()
 
     def reset_selected(self):
-        for param, controls in self.controls.items():
-            slider, spin, minSpin, maxSpin, manualEdit = controls
-            if param in self.default_parameters:
-                default_val = float(self.default_parameters[param]["value"]) if isinstance(self.default_parameters[param], dict) else float(self.default_parameters[param])
-                self.parameters[param]["value"] = default_val
-                spin.setValue(default_val)
-                slider.setValue(int(default_val * 1e6))
-
+        for param in self.controls:
+            default = self.default_parameters.get(param, self.available_parameters[param])
+            value = float(default['value'] if isinstance(default, dict) else default)
+            self.parameters[param]['value'] = value
+            self.parameters[param]['min'] = min(self.parameters[param]['min'], value)
+            self.parameters[param]['max'] = max(self.parameters[param]['max'], value)
+            self.sync_parameter_ui(param)
         QtWidgets.QMessageBox.information(self, "Reset", "Parameters have been reset to default values.")
 
     def save_calibration(self):
@@ -639,13 +650,26 @@ class ParameterTunerWindow(QtWidgets.QWidget):
             self, "Load Calibration Session", "", "JSON Files (*.json)"
         )
         if filename:
-            with open(filename, "r") as f:
-                loaded_data = json.load(f)
-
-            # Clear the existing dictionary instead of reassigning a new dict.
+            try:
+                from IceMOS_sky130_pdk_exporter import load_calibration, calibration_values
+                from IceMOS_sky130_model_io import numeric_value
+                loaded = load_calibration(filename)
+                values = calibration_values(loaded)
+                loaded_data = {}
+                for name, value in values.items():
+                    if name not in self.available_parameters:
+                        raise ValueError(f"Unknown parameter: {name}")
+                    entry = dict(loaded[name]) if isinstance(loaded[name], dict) else {}
+                    entry['value'] = float(numeric_value(value))
+                    for bound in ('min', 'max'):
+                        if bound in entry:
+                            entry[bound] = float(numeric_value(entry[bound]))
+                    loaded_data[name] = entry
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                QtWidgets.QMessageBox.warning(self, "Calibration Session", str(error))
+                return
             self.parameters.clear()
-            for k, v in loaded_data.items():
-                self.parameters[k] = v
+            self.parameters.update(loaded_data)
 
             self.populate_parameters()
             QtWidgets.QMessageBox.information(self, "Loaded", "Calibration session loaded successfully.")
@@ -655,10 +679,12 @@ class ParameterTunerWindow(QtWidgets.QWidget):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, device_type, bin_number, lib_root="circuits"):
+    def __init__(self, device_type, bin_number, lib_root="circuits", original_model_file=None):
         super().__init__()
         self.device_type = device_type.lower()
         self.bin_number = bin_number
+        self.original_model_file = original_model_file
+        self.simulation_window = None
         self.lib_file_path = os.path.join(lib_root, self.device_type, f"bin_{bin_number}",
                                           f"bin_{bin_number}_{self.device_type}_original.lib")
         from IceMOS_sky130_param_extractor import extract_parameters_with_values
@@ -672,9 +698,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStyleSheet("background-color: #2b2b2b; color: #f0f0f0;")
         # Remove the left pane; we rely on the tuner.
         self.tuner = ParameterTunerWindow(self.current_parameters, self.default_parameters, self.available_parameters)
-        self.run_button = QtWidgets.QPushButton("Run Calibration Loop")
+        self.run_button = QtWidgets.QPushButton("Apply and Simulate")
         self.updateLibButton = QtWidgets.QPushButton("Update Modified LIB")
         self.simulationButton = QtWidgets.QPushButton("Open Simulation Window")
+        self.exportButton = QtWidgets.QPushButton("Export Calibrated Model")
 
         central_widget = QtWidgets.QWidget()
         main_layout = QtWidgets.QVBoxLayout(central_widget)
@@ -683,6 +710,7 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbarLayout.addWidget(self.run_button)
         toolbarLayout.addWidget(self.updateLibButton)
         toolbarLayout.addWidget(self.simulationButton)
+        toolbarLayout.addWidget(self.exportButton)
         main_layout.addLayout(toolbarLayout)
         main_layout.addWidget(self.tuner)
         self.setCentralWidget(central_widget)
@@ -690,35 +718,49 @@ class MainWindow(QtWidgets.QMainWindow):
         self.run_button.clicked.connect(self.run_calibration)
         self.updateLibButton.clicked.connect(self.update_modified_lib)
         self.simulationButton.clicked.connect(self.open_simulation_window)
+        self.exportButton.clicked.connect(self.export_calibrated_model)
 
-    def update_modified_lib(self):
-        # Import ModelModifier from the param handler module.
+    def update_modified_lib(self, checked=False, notify=True):
         from IceMOS_sky130_param_handler import ModelModifier
-        # Construct the modified file path (assumes _original.lib is in self.lib_file_path)
-        modified_file_path = self.lib_file_path.replace("_original.lib", "_modified.lib")
-        modifier = ModelModifier(self.lib_file_path, modified_file_path, device_type=self.device_type)
-        print('------ Parameters ---------')
-        print(self.current_parameters.items())
-        for param, val in self.current_parameters.items():
-            # Assume val is a dict with key "value"
-            if isinstance(val, dict):
-                new_val = val.get("value", None)
-                print(f'new_val ({self.device_type}) ({param}) = {new_val}')
-                if new_val is not None:
-                    # Modify the parameter in the given bin.
-                    modifier.modify_parameter(self.bin_number, param, str(new_val))
-        QtWidgets.QMessageBox.information(self, "LIB Update", "Modified LIB file has been updated.")
+        from IceMOS_sky130_pdk_exporter import calibration_values
+        if not self.current_parameters:
+            return True
+        try:
+            modified = self.lib_file_path.replace("_original.lib", "_modified.lib")
+            modifier = ModelModifier(self.lib_file_path, modified, self.device_type)
+            modifier.modify_parameters(self.bin_number, calibration_values(self.current_parameters))
+        except (OSError, ValueError, KeyError) as error:
+            QtWidgets.QMessageBox.warning(self, "Model Update", str(error))
+            return False
+        if notify:
+            QtWidgets.QMessageBox.information(self, "Model Update", "Modified model updated.")
+        return True
 
     def open_simulation_window(self):
-        simWin = SimulationWindow(self.device_type, self.bin_number, self.lib_file_path)
-        simWin.resize(800, 600)
-        simWin.show()
+        if self.simulation_window is None:
+            self.simulation_window = SimulationWindow(self.device_type, self.bin_number, self.lib_file_path)
+            self.simulation_window.before_simulation = lambda: self.update_modified_lib(notify=False)
+            self.simulation_window.resize(800, 600)
+        self.simulation_window.show()
+        return self.simulation_window
 
     def run_calibration(self):
-        print("Running calibration with parameters:")
-        for k, v in self.current_parameters.items():
-            print(f"  {k}: {v}")
-        QtWidgets.QMessageBox.information(self, "Calibration", "Calibration loop executed (placeholder).")
+        window = self.open_simulation_window()
+        window.run_simulation()
+
+    def export_calibrated_model(self):
+        from IceMOS_sky130_pdk_exporter import export_calibrated_model
+        source = self.original_model_file or self.lib_file_path
+        destination, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Export Calibrated SKY130 Model", "", "SPICE Files (*.spice *.lib)")
+        if destination:
+            try:
+                export_calibrated_model(source, destination, self.device_type,
+                                        {self.bin_number: self.current_parameters})
+            except (OSError, ValueError, KeyError) as error:
+                QtWidgets.QMessageBox.warning(self, "Export", str(error))
+                return
+            QtWidgets.QMessageBox.information(self, "Export", "Calibrated model exported.")
 
 
 
@@ -798,6 +840,7 @@ class SimulationWindow(QtWidgets.QDialog):
         self.device_type = device_type.lower()
         self.bin_number = bin_number
         self.lib_file_path = lib_file_path
+        self.before_simulation = None
         self.setWindowTitle("Simulation Configuration")
 
         # Variables to store lab data
@@ -843,11 +886,13 @@ class SimulationWindow(QtWidgets.QDialog):
         self.stopBtn = QtWidgets.QPushButton("Stop Continuous Simulation")
         # New button to load lab data
         self.loadLabDataBtn = QtWidgets.QPushButton("Load Lab Data")
+        self.importMDMBtn = QtWidgets.QPushButton("Import MDM to CSV")
         btnLayout = QtWidgets.QHBoxLayout()
         btnLayout.addWidget(self.runOnceBtn)
         btnLayout.addWidget(self.runContinuousBtn)
         btnLayout.addWidget(self.stopBtn)
         btnLayout.addWidget(self.loadLabDataBtn)
+        btnLayout.addWidget(self.importMDMBtn)
         layout.addLayout(btnLayout)
 
         self.statusLabel = QtWidgets.QLabel("")
@@ -857,8 +902,25 @@ class SimulationWindow(QtWidgets.QDialog):
         self.runContinuousBtn.clicked.connect(lambda: self.timer.start(5000))
         self.stopBtn.clicked.connect(self.timer.stop)
         self.loadLabDataBtn.clicked.connect(self.load_lab_data)
+        self.importMDMBtn.clicked.connect(self.import_mdm)
 
         self.setLayout(layout)
+
+    def import_mdm(self):
+        from pathlib import Path
+        from IceMOS_sky130_mdm_parser import MDMParser
+        source, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import MDM", "", "MDM Files (*.mdm)")
+        if not source:
+            return
+        output = QtWidgets.QFileDialog.getExistingDirectory(self, "Select CSV Output Directory")
+        if not output:
+            return
+        try:
+            path = Path(source)
+            files, _ = MDMParser(path.parent, path.name, []).export_csv(output)
+            self.statusLabel.setText(f"Imported {len(files)} curves. Use Load Lab Data to select CSV columns.")
+        except (OSError, ValueError) as error:
+            QtWidgets.QMessageBox.warning(self, "MDM Import", str(error))
 
     def load_lab_data(self):
         """Loads lab data and allows the user to choose which columns to use.
@@ -928,6 +990,17 @@ class SimulationWindow(QtWidgets.QDialog):
                     QtWidgets.QMessageBox.information(self, "Data Loaded", "Lab data loaded for IV vs VDS.")
 
     def run_simulation(self):
+        try:
+            if self.before_simulation is not None and not self.before_simulation():
+                self.timer.stop()
+                return
+            self._run_simulation()
+        except (OSError, ValueError, RuntimeError) as error:
+            self.timer.stop()
+            self.statusLabel.setText(str(error))
+            QtWidgets.QMessageBox.warning(self, "Simulation", str(error))
+
+    def _run_simulation(self):
         sim_type = self.simTypeCombo.currentText()
         if sim_type == "IV vs VG":
             try:

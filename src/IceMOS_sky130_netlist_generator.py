@@ -1,5 +1,6 @@
 import os
 import re
+import math
 from IceMOS_sky130_circuit_model_extractor import ModelExtractor
 
 
@@ -10,6 +11,13 @@ class NetlistGeneratorSky130:
         :param original_model_file: Path to the original SPICE model file.
         """
         self.original_model_file = original_model_file
+
+    @staticmethod
+    def _validate_sweep(start, stop, step):
+        if not all(math.isfinite(v) for v in (start, stop, step)) or step <= 0 or stop < start:
+            raise ValueError("Sweep requires finite values, a positive step and stop >= start")
+        if (stop - start) / step > 100000:
+            raise ValueError("Sweep exceeds 100000 steps")
 
     def _find_bin_by_dimensions(self, W, L, device_type, tol=1e-6):
         """
@@ -47,7 +55,7 @@ class NetlistGeneratorSky130:
         The results are written to folder "results_IV_ID_vs_VG".
         For NMOS, the template used is:
 
-            .option verbose=1
+            .option verbose=1 scale=1u
             * IV Simulation netlist for device {device_type} using {model_type} model
             * Model: {model_name}
             .param nf=1
@@ -73,7 +81,7 @@ class NetlistGeneratorSky130:
 
         For PMOS, the template is:
 
-            .option verbose=1
+            .option verbose=1 scale=1u
             * IV Simulation netlist for device {device_type} using {model_type} model
             * Model: {model_name}
             .param nf=1
@@ -98,7 +106,10 @@ class NetlistGeneratorSky130:
 
         :return: Dictionary with paths for 'original' and 'modified' netlists.
         """
+        self._validate_sweep(vgate_start, vgate_stop, vgate_step)
         device_type = device_type.lower()
+        if device_type not in ('nch', 'pch'):
+            raise ValueError("Device must be nch or pch")
         if bin_number is None:
             if W is None or L is None:
                 raise ValueError("Either bin_number or both W and L must be provided.")
@@ -128,8 +139,9 @@ class NetlistGeneratorSky130:
             include_line_original = f'.include "./{original_model_filename}"\n'
             include_line_modified = f'.include "./{modified_model_filename}"\n'
             temp_for_sim = 27
-            iv_template = """{include_line}
-.option verbose=1
+            iv_template = """* IceMOS SKY130 standalone device simulation
+{include_line}
+.option verbose=1 scale=1u
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
@@ -159,10 +171,6 @@ V1_meas V1 net2 0
 
 .param mc_mm_switch=0
 .param mc_pr_switch=0
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
 
 .GLOBAL GND
 .end
@@ -175,8 +183,9 @@ V1_meas V1 net2 0
             include_line_original = f'.include "./{original_model_filename}"\n'
             include_line_modified = f'.include "./{modified_model_filename}"\n'
             temp_for_sim = 27
-            iv_template = """{include_line}
-.option verbose=1
+            iv_template = """* IceMOS SKY130 standalone device simulation
+{include_line}
+.option verbose=1 scale=1u
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
@@ -208,10 +217,6 @@ op
 
 .param mc_mm_switch=0
 .param mc_pr_switch=0
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
 
 .GLOBAL GND
 .end
@@ -302,7 +307,17 @@ op
           {vsd_start}, {vsd_stop}, {vsd_step} for the VSD sweep.
         These last three variables must be provided by the user.
         """
+        self._validate_sweep(vgs_start, vgs_stop, vgs_step)
+        if device_type.lower() == 'pch':
+            vsd_start = vds_start if vsd_start is None else vsd_start
+            vsd_stop = vds_stop if vsd_stop is None else vsd_stop
+            vsd_step = vds_step if vsd_step is None else vsd_step
+            self._validate_sweep(vsd_start, vsd_stop, vsd_step)
+        else:
+            self._validate_sweep(vds_start, vds_stop, vds_step)
         device_type = device_type.lower()
+        if device_type not in ('nch', 'pch'):
+            raise ValueError("Device must be nch or pch")
         if bin_number is None:
             if W is None or L is None:
                 raise ValueError("Either bin_number or both W and L must be provided.")
@@ -330,8 +345,9 @@ op
             include_line_modified = f'.include "./{modified_model_filename}"\n'
             vds_prefix = "n_mosfet_id_vs_vsd_"
             temp_for_sim = 27
-            vds_template = """{include_line}
-.option verbose=1
+            vds_template = """* IceMOS SKY130 standalone device simulation
+{include_line}
+.option verbose=1 scale=1u
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
@@ -370,10 +386,6 @@ end
 
 .param mc_mm_switch=0
 .param mc_pr_switch=0
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
 .GLOBAL GND
 .end
 """
@@ -386,8 +398,9 @@ end
             include_line_modified = f'.include "./{modified_model_filename}"\n'
             vds_prefix = "p_mosfet_id_vs_vsd_"
             temp_for_sim = 27
-            vds_template = """{include_line}
-.option verbose=1
+            vds_template = """* IceMOS SKY130 standalone device simulation
+{include_line}
+.option verbose=1 scale=1u
 
 *set temperature for simulation
 *if this file is 'ORIGINAL' temp is set to 27C
@@ -425,10 +438,6 @@ end
 
 .param mc_mm_switch=0
 .param mc_pr_switch=0
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
-.include /foss/pdks/sky130A/libs.tech/ngspice/corners/tt/specialized_cells.spice
 .GLOBAL GND
 .end
 """

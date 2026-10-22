@@ -135,7 +135,9 @@ class ModelExtractor:
             device_type (str): 'nch' for NMOS extraction or 'pch' for PMOS extraction. Default is 'nch'.
         """
         self.original_file_path = original_file_path
-        self.device_type = device_type.lower()  # Ensure lower-case for comparison
+        self.device_type = device_type.lower()
+        if self.device_type not in ('nch', 'pch'):
+            raise ValueError('Device must be nch or pch')
         with open(original_file_path, 'r') as file:
             self.original_file = file.read()
 
@@ -197,8 +199,7 @@ class ModelExtractor:
                         output_lines.append(line)
 
         if not found_bin:
-            print(f"Bin {bin_number} not found in the file for device type '{self.device_type}'.")
-            return
+            raise ValueError(f"Bin {bin_number} not found for {self.device_type}")
 
         # Prepare the output directory and file names
         output_dir = os.path.join("circuits", self.device_type, f"bin_{bin_number}")
@@ -206,16 +207,20 @@ class ModelExtractor:
         original_file_name = os.path.join(output_dir, f"bin_{bin_number}_{self.device_type}_original.lib")
         modified_file_name = os.path.join(output_dir, f"bin_{bin_number}_{self.device_type}_modified.lib")
 
-        # Modify the first line to add an opening parenthesis and add closing parts at the end
-        output_lines[0] = output_lines[0].rstrip() + " (\n"
-        output_lines.append(")\n\n")
-        output_lines.append(".END\n")
-
-        # Write the extracted lines to both the original and modified files
+        # Retain the source model's license header in extracted files.
+        license_lines = []
+        for line in self.original_file.splitlines(keepends=True):
+            if line.lstrip().startswith('*') or not line.strip():
+                license_lines.append(line)
+            else:
+                break
+        output_lines = license_lines + output_lines
         with open(original_file_name, 'w') as orig_file:
             orig_file.writelines(output_lines)
-        with open(modified_file_name, 'w') as mod_file:
-            mod_file.writelines(output_lines)
+        # Reopening a workspace must retain the user's calibrated model.
+        if not os.path.exists(modified_file_name):
+            with open(modified_file_name, 'w') as mod_file:
+                mod_file.writelines(output_lines)
 
         print(f"Parameters for bin {bin_number} ({self.device_type}) have been extracted to:")
         print(f"  Original: {original_file_name}")
