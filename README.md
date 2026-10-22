@@ -37,8 +37,6 @@ The CLI also provides `mdm`, `simulate` and `export` commands. Run
 
 - ngspice is tested with real NMOS/PMOS simulations. Spectre's wrapper is tested
   with synthetic results; validation with a real Spectre installation is pending.
-- Modified netlists use an effective temperature of −220 °C (53.15 K). Calibration
-  against measurements at 4 K still requires experimental validation.
 
 ## License
 
