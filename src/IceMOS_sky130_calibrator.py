@@ -679,11 +679,14 @@ class ParameterTunerWindow(QtWidgets.QWidget):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, device_type, bin_number, lib_root="circuits", original_model_file=None):
+    def __init__(self, device_type, bin_number, lib_root="circuits", original_model_file=None,
+                 backend="ngspice", spectre_executable=None):
         super().__init__()
         self.device_type = device_type.lower()
         self.bin_number = bin_number
         self.original_model_file = original_model_file
+        self.backend = backend
+        self.spectre_executable = spectre_executable
         self.simulation_window = None
         self.lib_file_path = os.path.join(lib_root, self.device_type, f"bin_{bin_number}",
                                           f"bin_{bin_number}_{self.device_type}_original.lib")
@@ -748,7 +751,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def open_simulation_window(self):
         if self.simulation_window is None:
-            self.simulation_window = SimulationWindow(self.device_type, self.bin_number, self.lib_file_path)
+            self.simulation_window = SimulationWindow(self.device_type, self.bin_number, self.lib_file_path,
+                                                      backend=self.backend, spectre_executable=self.spectre_executable)
             self.simulation_window.before_simulation = lambda: self.update_modified_lib(notify=False)
             self.simulation_window.resize(800, 600)
         self.simulation_window.show()
@@ -845,12 +849,15 @@ class PlotWindow(pg.GraphicsLayoutWidget):
 
 
 class SimulationWindow(QtWidgets.QDialog):
-    def __init__(self, device_type, bin_number, lib_file_path, parent=None):
+    def __init__(self, device_type, bin_number, lib_file_path, parent=None, *,
+                 backend="ngspice", spectre_executable=None):
         super().__init__(parent)
         self.device_type = device_type.lower()
         self.bin_number = bin_number
         self.lib_file_path = lib_file_path
         self.before_simulation = None
+        self.backend = backend
+        self.spectre_executable = spectre_executable
         self.setWindowTitle("Simulation Configuration")
 
         # Variables to store lab data
@@ -861,12 +868,22 @@ class SimulationWindow(QtWidgets.QDialog):
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.run_simulation)
 
+        from IceMOS_sky130_simulation import create_simulator
+        self.simulator = create_simulator(self.lib_file_path, backend, spectre_executable=spectre_executable)
         self.setup_ui()
-        from IceMOS_sky130_simulator import IceMOS_simulator_sky130
-        self.simulator = IceMOS_simulator_sky130(self.lib_file_path)
 
     def setup_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
+        self.backendCombo = QtWidgets.QComboBox()
+        self.backendCombo.addItems(["ngspice", "spectre"])
+        self.backendCombo.setCurrentText(self.backend)
+        layout.addWidget(QtWidgets.QLabel("Simulator:"))
+        layout.addWidget(self.backendCombo)
+        self.variantCombo = QtWidgets.QComboBox()
+        self.variantCombo.addItems(["modified", "original"])
+        layout.addWidget(QtWidgets.QLabel("Model:"))
+        layout.addWidget(self.variantCombo)
+        self.backendCombo.currentTextChanged.connect(self.select_backend)
         self.simTypeCombo = QtWidgets.QComboBox()
         self.simTypeCombo.addItems(["IV vs VG", "IV vs VDS"])
         layout.addWidget(QtWidgets.QLabel("Select Simulation Type:"))
@@ -915,6 +932,14 @@ class SimulationWindow(QtWidgets.QDialog):
         self.importMDMBtn.clicked.connect(self.import_mdm)
 
         self.setLayout(layout)
+
+    def select_backend(self, backend):
+        from IceMOS_sky130_simulation import create_simulator
+        self.timer.stop()
+        self.simulator = create_simulator(self.lib_file_path, backend,
+                                          spectre_executable=self.spectre_executable)
+        self.backend = backend
+        self.statusLabel.setText(f"Selected {backend}.")
 
     def import_mdm(self):
         from pathlib import Path
@@ -1012,161 +1037,46 @@ class SimulationWindow(QtWidgets.QDialog):
 
     def _run_simulation(self):
         sim_type = self.simTypeCombo.currentText()
+        vg_start = float(self.vgStartEdit.text())
+        vg_stop = float(self.vgStopEdit.text())
+        vg_step = float(self.vgStepEdit.text())
+        variant = self.variantCombo.currentText()
         if sim_type == "IV vs VG":
-            try:
-                vg_start = float(self.vgStartEdit.text())
-                vg_stop = float(self.vgStopEdit.text())
-                vg_step = float(self.vgStepEdit.text())
-            except ValueError:
-                QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check VG simulation values.")
-                return
-
-            output = self.simulator.simulate_iv(
-                self.device_type, bin_number=self.bin_number,
-                vgate_start=vg_start, vgate_stop=vg_stop, vgate_step=vg_step
-            )
-            folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}", "results_IV_ID_vs_VG")
-            csv_file = "IV_ID_vs_VG.csv"
-            csv_path = os.path.join(folder, csv_file)
-            if not os.path.exists(csv_path):
-                QtWidgets.QMessageBox.warning(self, "File Not Found", f"{csv_path} not found.")
-                return
-            try:
-                df = pd.read_csv(csv_path, sep=r'\s+', header=None)
-                df.columns = ["X", "Y"]
-                sim_curve = (df["X"].values, df["Y"].values, "Simulation (IV vs VG)", "w")
-            except Exception as e:
-                QtWidgets.QMessageBox.warning(self, "Error", f"Error reading CSV: {e}")
-                return
-
-            # Combine simulation data with lab data if available
-            if self.lab_data_iv_vs_vg is not None:
-                curves = [sim_curve] + self.lab_data_iv_vs_vg
-            else:
-                curves = [sim_curve]
-
-            # Assume get_plot_labels is defined elsewhere as in the original code.
-            title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
-            if hasattr(self,
-                       'plotWin_IV_vs_VG') and self.plotWin_IV_vs_VG is not None and self.plotWin_IV_vs_VG.isVisible():
-                plot_win = self.plotWin_IV_vs_VG
-                plot_win.setWindowTitle(title)
-                plot_win.plotItem.setTitle(title)
-                plot_win.plotItem.setLabel('bottom', x_label)
-                plot_win.plotItem.setLabel('left', y_label)
-            else:
-                plot_win = PlotWindow(title, x_label, y_label)
-                self.plotWin_IV_vs_VG = plot_win
-            plot_win.update_data(curves)
-            plot_win.show()
-
-        else:  # For IV vs VDS/VSD
-            try:
-                vg_start = float(self.vgStartEdit.text())
-                vg_stop = float(self.vgStopEdit.text())
-                vg_step = float(self.vgStepEdit.text())
-                vds_start = float(self.vdsStartEdit.text())
-                vds_stop = float(self.vdsStopEdit.text())
-                vds_step = float(self.vdsStepEdit.text())
-            except ValueError:
-                QtWidgets.QMessageBox.warning(self, "Invalid Input", "Check simulation values.")
-                return
-
+            self.simulator.simulate_iv(
+                self.device_type, bin_number=self.bin_number, model_type=variant,
+                vgate_start=vg_start, vgate_stop=vg_stop, vgate_step=vg_step)
+            sim_curves = [self.simulator.read_iv_results(self.device_type, self.bin_number)]
+            lab_curves = self.lab_data_iv_vs_vg or []
+            window_attribute = "plotWin_IV_vs_VG"
+        else:
+            drain_start = float(self.vdsStartEdit.text())
+            drain_stop = float(self.vdsStopEdit.text())
+            drain_step = float(self.vdsStepEdit.text())
             if self.device_type == "nch":
-
-                # Remove old CSV files from the results folder
-                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
-                                      "results_IV_IDS_vs_VDS_for_VG_sweep")
-
-                # be sure that folder exist
-                if not os.path.exists(folder):
-                    os.makedirs(folder)
-                    
-                for fname in os.listdir(folder):
-                    if fname.endswith(".csv") or fname.endswith(".raw"):
-                        os.remove(os.path.join(folder, fname))
-
-                # Run sim
-                output = self.simulator.simulate_id_vs_vds_sweep_vg(
-                    self.device_type, bin_number=self.bin_number,
+                self.simulator.simulate_id_vs_vds_sweep_vg(
+                    self.device_type, bin_number=self.bin_number, model_type=variant,
                     vgs_start=vg_start, vgs_stop=vg_stop, vgs_step=vg_step,
-                    vds_start=vds_start, vds_stop=vds_stop, vds_step=vds_step
-                )
-                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
-                                      "results_IV_IDS_vs_VDS_for_VG_sweep")
-
-
-                col_names = ["V(VDS)", "V(VGS)", "V(VDS)_dup", "I(IDS)", "V(VDS)_dup2", "I(VDSM)"]
-                x_col, y_col = "V(VDS)", "I(VDSM)"
-                label_prefix = "VGS="
+                    vds_start=drain_start, vds_stop=drain_stop, vds_step=drain_step)
             else:
-                # Remove old CSV files from the results folder
-                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
-                                      "results_IV_ISD_vs_VSD_for_VG_sweep")
-
-                # be sure that folder exist
-                if not os.path.exists(folder):
-                    os.makedirs(folder)
-
-                for fname in os.listdir(folder):
-                    if fname.endswith(".csv") or fname.endswith(".raw"):
-                        os.remove(os.path.join(folder, fname))
-
-                # Run sim
-                output = self.simulator.simulate_is_vs_vsd_sweep_vg(
-                    self.device_type, bin_number=self.bin_number,
+                self.simulator.simulate_is_vs_vsd_sweep_vg(
+                    self.device_type, bin_number=self.bin_number, model_type=variant,
                     vsg_start=vg_start, vsg_stop=vg_stop, vsg_step=vg_step,
-                    vsd_start=vds_start, vsd_stop=vds_stop, vsd_step=vds_step
-                )
-                folder = os.path.join("circuits", self.device_type, f"bin_{self.bin_number}",
-                                      "results_IV_ISD_vs_VSD_for_VG_sweep")
-                col_names = ["V(VSD)", "V(VG)", "V(VSD)_dup", "I(ISD)", "V(VSD)_dup", "I(VSDM)"]
-                x_col, y_col = "V(VSD)", "I(VSDM)"
-                label_prefix = "VSG="
-
-            csv_files = [f for f in os.listdir(folder) if f.endswith(".csv")]
-            if not csv_files:
-                QtWidgets.QMessageBox.warning(self, "No Data", "No CSV files found in the sweep folder.")
-                return
-            csv_files.sort()
-
-            sim_curves = []
-            for fname in csv_files:
-                path = os.path.join(folder, fname)
-                try:
-                    df_ = pd.read_csv(path, sep=r'\s+', header=None)
-                    df_.columns = col_names
-                    try:
-                        v_str = fname.rsplit('_', 1)[-1].replace('.csv', '')
-                    except Exception:
-                        v_str = fname
-                    label = f"{label_prefix}{v_str} V"
-                    sim_curves.append((df_[x_col].values, df_[y_col].values, label, "w"))
-                except Exception as e:
-                    print(f"Error reading {fname}: {e}")
-                    continue
-
-            # Combine simulation curves with lab data if available
-            if self.lab_data_iv_vs_vds:
-                curves = sim_curves + self.lab_data_iv_vs_vds
-            else:
-                curves = sim_curves
-
-            title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
-            if hasattr(self,
-                       'plotWin_IV_vs_VDS') and self.plotWin_IV_vs_VDS is not None and self.plotWin_IV_vs_VDS.isVisible():
-                plot_win = self.plotWin_IV_vs_VDS
-                plot_win.setWindowTitle(title)
-                plot_win.plotItem.setTitle(title)
-                plot_win.plotItem.setLabel('bottom', x_label)
-                plot_win.plotItem.setLabel('left', y_label)
-            else:
-                plot_win = PlotWindow(title, x_label, y_label)
-                self.plotWin_IV_vs_VDS = plot_win
-            plot_win.update_data(curves)
-            plot_win.show()
-
-        self.statusLabel.setText(f"Simulation {sim_type} run; plot updated.")
-        print("Simulation run complete; plot window updated.")
-
-
+                    vsd_start=drain_start, vsd_stop=drain_stop, vsd_step=drain_step)
+            sim_curves = self.simulator.read_output_results(self.device_type, self.bin_number)
+            lab_curves = self.lab_data_iv_vs_vds
+            window_attribute = "plotWin_IV_vs_VDS"
+        curves = [(curve.x, curve.y, curve.label, "w") for curve in sim_curves] + lab_curves
+        title, x_label, y_label = get_plot_labels(self.device_type, sim_type)
+        title = f"{title} ({self.backend}, {variant})"
+        plot_win = getattr(self, window_attribute, None)
+        if plot_win is None or not plot_win.isVisible():
+            plot_win = PlotWindow(title, x_label, y_label)
+            setattr(self, window_attribute, plot_win)
+        else:
+            plot_win.setWindowTitle(title)
+            plot_win.plotItem.setTitle(title)
+            plot_win.plotItem.setLabel('bottom', x_label)
+            plot_win.plotItem.setLabel('left', y_label)
+        plot_win.update_data(curves)
+        plot_win.show()
+        self.statusLabel.setText(f"{self.backend}: {sim_type} ({variant}) run; plot updated.")

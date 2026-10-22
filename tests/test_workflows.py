@@ -156,3 +156,22 @@ def test_zero_or_negative_sweep_rejected_before_simulation():
     for step in [0, -0.1, float('nan')]:
         with pytest.raises(ValueError):
             generator.generate_iv_vds_netlists('nch', bin_number=1, vgs_step=step)
+
+
+@pytest.mark.skipif(shutil.which('ngspice') is None, reason='ngspice is not installed')
+def test_ngspice_cli_and_normalized_output_reader(tmp_path, monkeypatch):
+    import csv
+    from IceMOS_sky130_cli import main
+    from IceMOS_sky130_simulation import create_simulator
+    monkeypatch.chdir(tmp_path)
+    source = ROOT / 'pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice'
+    output = tmp_path / 'curves.csv'
+    assert main(['simulate', str(source), '--device', 'nch', '--bin', '40',
+                 '--variant', 'original', '--gate-step', '0.9', '--output', str(output)]) == 0
+    with output.open() as stream:
+        assert len(list(csv.reader(stream))) == 4
+    simulator = create_simulator(source)
+    simulator.simulate_id_vs_vds_sweep_vg('nch', bin_number=40, vgs_step=0.6, vds_step=0.3)
+    assert len(simulator.read_output_results('nch', 40)) == 4
+    simulator.simulate_id_vs_vds_sweep_vg('nch', bin_number=40, vgs_step=0.9, vds_step=0.3)
+    assert len(simulator.read_output_results('nch', 40)) == 3

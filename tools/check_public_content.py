@@ -23,15 +23,15 @@ def check_paths(entries, patterns):
         reasons = []
         if any(part in {'myenv', '.venv', '__pycache__', '.idea', '.ipynb_checkpoints'} for part in path.parts):
             reasons.append('generated environment or cache')
-        if path.suffix.lower() in {'.zip', '.gz', '.tar', '.ipynb', '.pyc', '.so', '.scs'}:
+        if path.suffix.lower() in {'.zip', '.gz', '.tar', '.ipynb', '.pyc', '.so'}:
             reasons.append('unexpected packaged or generated artifact')
         if b'\0' in data:
             reasons.append('binary artifact requires separate review')
         text = data.decode('utf-8', errors='replace')
         if any(pattern.search(text) or pattern.search(name) for pattern in patterns):
             reasons.append('external content policy match')
-        if path.suffix.lower() in {'.lib', '.spice', '.pm3'}:
-            for match in re.finditer(r'^\s*\.model\s+(\S+)', text, re.I | re.M):
+        if path.suffix.lower() in {'.lib', '.spice', '.pm3', '.scs'}:
+            for match in re.finditer(r'^\s*(?:\.model|model)\s+(\S+)', text, re.I | re.M):
                 if not match[1].lower().startswith('sky130_'):
                     reasons.append('model outside the SKY130 namespace')
                     break

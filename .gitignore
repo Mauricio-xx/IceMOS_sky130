@@ -11,3 +11,4 @@ SESSION_LOG.md
 output/
 *.raw
 *.pdf
+circuits/**/spectre/

@@ -25,7 +25,8 @@ py-modules = [
   "IceMOS_sky130_mdm_parser", "IceMOS_sky130_pdk_exporter",
   "IceMOS_sky130_netlist_generator", "IceMOS_sky130_param_extractor",
   "IceMOS_sky130_param_handler", "IceMOS_sky130_pdk_parser",
-  "IceMOS_sky130_simulator",
+  "IceMOS_sky130_simulator", "IceMOS_sky130_simulation",
+  "IceMOS_sky130_spectre_netlist_generator", "IceMOS_sky130_spectre_simulator",
 ]
 
 [tool.pytest.ini_options]

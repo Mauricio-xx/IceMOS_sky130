@@ -118,3 +118,46 @@ def test_reopened_calibration_recovers_deltas_and_removal_restores_source(tmp_pa
     assert (folder / 'bin_40_nch_modified.lib').read_text() == (folder / 'bin_40_nch_original.lib').read_text()
     reopened.close()
     app.processEvents()
+
+
+def test_spectre_backend_gui_uses_native_results_and_switches_cleanly(tmp_path, monkeypatch, fake_spectre):
+    from IceMOS_sky130_calibrator import MainWindow
+    from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    monkeypatch.chdir(tmp_path)
+    warnings = []
+    monkeypatch.setattr(QtWidgets.QMessageBox, 'warning', lambda *args: warnings.append(args[-1]))
+    source = Path(__file__).resolve().parents[1] / 'pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice'
+    ModelExtractor(source).extract_bin_parameters(40)
+    window = MainWindow('nch', 40, backend='spectre', spectre_executable=fake_spectre)
+    simulation = window.open_simulation_window()
+    assert simulation.backendCombo.currentText() == 'spectre'
+    simulation.vgStepEdit.setText('0.9')
+    simulation.vdsStepEdit.setText('0.3')
+    window.current_parameters['vth0'] = {'value': 0.75}
+    window.run_calibration()
+    assert not warnings
+    assert 'spectre' in simulation.plotWin_IV_vs_VG.windowTitle()
+    assert simulation.simulator.read_iv_results('nch', 40).x == [0, 0.9, 1.8]
+    simulation.simTypeCombo.setCurrentText('IV vs VDS')
+    simulation.variantCombo.setCurrentText('original')
+    window.run_calibration()
+    assert not warnings and simulation.plotWin_IV_vs_VDS.isVisible()
+    assert 'original' in simulation.plotWin_IV_vs_VDS.windowTitle()
+    assert len(simulation.simulator.read_output_results('nch', 40)) == 3
+    assert not Path('circuits/nch/bin_40/results_IV_ID_vs_VG').exists()
+    simulation.timer.start(5000)
+    simulation.backendCombo.setCurrentText('ngspice')
+    assert not simulation.timer.isActive()
+    assert simulation.simulator.name == 'ngspice'
+    simulation.backendCombo.setCurrentText('spectre')
+    monkeypatch.setenv('FAKE_SPECTRE_MODE', 'missing')
+    simulation.timer.start(5000)
+    window.run_calibration()
+    assert not simulation.timer.isActive()
+    assert warnings and 'produced no DC result' in warnings[-1]
+    simulation.plotWin_IV_vs_VG.close()
+    simulation.plotWin_IV_vs_VDS.close()
+    simulation.close()
+    window.close()
+    app.processEvents()
