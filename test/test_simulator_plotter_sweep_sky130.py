@@ -5,7 +5,7 @@ import sys
 sources_path = os.path.join(os.path.dirname(__file__), "../src")
 sys.path.insert(0, sources_path)
 
-from IceMOS_sky130_simulator import IceMOS_simulator_sky130
+from icemos.ngspice_simulator import NgspiceSimulator
 
 
 def test_iv_vds_plot_nmos():
@@ -14,7 +14,7 @@ def test_iv_vds_plot_nmos():
     Simulate IV VDS using a specified bin number for NMOS and plot the results.
     """
     original_model_file = "../pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice"
-    simulator = IceMOS_simulator_sky130(original_model_file)
+    simulator = NgspiceSimulator(original_model_file)
 
     print("Simulating IV VDS for NMOS using bin number 0:")
     iv_vds_output = simulator.simulate_id_vs_vds_sweep_vg(device_type='nch', bin_number=0,
@@ -33,7 +33,7 @@ def test_iv_vds_plot_pmos():
     Simulate IV VDS using a specified bin number for PMOS and plot the results.
     """
     original_model_file = "../pdk_original_models/sky130_fd_pr__pfet_01v8.pm3.spice"
-    simulator = IceMOS_simulator_sky130(original_model_file)
+    simulator = NgspiceSimulator(original_model_file)
 
     print("Simulating IV VDS for PMOS using bin number 10:")
     iv_vds_output = simulator.simulate_is_vs_vsd_sweep_vg(device_type='pch', bin_number=10,

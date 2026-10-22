@@ -1,24 +1,49 @@
 # IceMOS_sky130
-Open ToolBox to enable cryogenics calibration for SKY130 open PDK
 
-This work follows the ideas reported here: https://ieeexplore.ieee.org/document/10658695
+A toolbox for manual cryogenic calibration of the SKY130 open PDK: import
+measurements, tune NMOS/PMOS model parameters, compare simulations with measured
+curves, and export calibrated models.
 
+## Install
 
-# License
+Requires Python 3.10+ and ngspice, or a separately configured Spectre installation.
 
-IceMOS is released under the [ECL-2.0 license](LICENSE).
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[gui]'
+```
 
-The copyright details are:
-    
-        Copyright 2025 University College Cork Licensed under the
-        Educational Community License, Version 2.0 (the "License"); you may
-        not use this file except in compliance with the License. You may
-        obtain a copy of the License at
+## Use
 
-http://opensource.org/licenses/ECL-2.0
+From this checkout, open the calibration GUI:
 
-        Unless required by applicable law or agreed to in writing,
-        software distributed under the License is distributed on an "AS IS"
-        BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
-        or implied. See the License for the specific language governing
-        permissions and limitations under the License.
+```bash
+.venv/bin/icemos gui \
+  pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice --device nch --bin 40
+```
+
+Select parameters, load CSV measurements (or import MDM), then **Apply and
+Simulate**. Save sessions as JSON or use **Export Calibrated Model**.
+
+For PMOS, use `sky130_fd_pr__pfet_01v8.pm3.spice` with `--device pch --bin 1`.
+Choose ngspice or Spectre in the simulation window; ngspice is the default.
+Spectre can also be selected with `--backend spectre`. Set `SPECTRE_BIN` if its
+executable is outside PATH.
+
+The CLI also provides `mdm`, `simulate` and `export` commands. Run
+`.venv/bin/icemos <command> --help` for options.
+
+## Status
+
+- ngspice is tested with real NMOS/PMOS simulations. Spectre's wrapper is tested
+  with synthetic results; validation with a real Spectre installation is pending.
+
+## License
+
+[Educational Community License 2.0](LICENSE). Copyright 2025 University College
+Cork. Bundled SKY130 models retain their original Apache 2.0 notices.
+
+## Publications
+
+- [IEEE publication 10658695](https://ieeexplore.ieee.org/document/10658695)
+- [IEEE publication 11421773](https://ieeexplore.ieee.org/document/11421773)

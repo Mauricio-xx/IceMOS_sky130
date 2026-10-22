@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icemos-sky130"
+version = "0.2.0"
+description = "Measurement import, simulation and calibration tools for the SKY130 open PDK"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["PyQt5>=5.15", "pyqtgraph>=0.13", "pandas>=2", "matplotlib>=3.7"]
+test = ["pytest>=8"]
+
+[project.scripts]
+icemos = "icemos.cli:main"
+icemos-sky130 = "icemos.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["icemos", "icemos.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
