@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from IceMOS_sky130_model_io import atomic_write, model_blocks, parameters, patch_bin
+from icemos.model_io import atomic_write, model_blocks, parameters, patch_bin
 
 
 class ModelModifier:

@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from IceMOS_sky130_model_io import atomic_write, patch_bin
+from icemos.model_io import atomic_write, patch_bin
 
 
 def calibration_values(session):

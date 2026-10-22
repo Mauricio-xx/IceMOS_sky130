@@ -6,7 +6,7 @@ import sys
 sources_path = os.path.join(os.path.dirname(__file__), "../src")
 sys.path.insert(0, sources_path)
 
-from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+from icemos.circuit_model_extractor import ModelExtractor
 
 
 def main():

@@ -5,10 +5,10 @@ import shutil
 
 import pytest
 
-from IceMOS_sky130_mdm_parser import MDMParser, read_mdm
-from IceMOS_sky130_model_io import model_blocks, parameters, patch_bin
-from IceMOS_sky130_param_handler import ModelModifier
-from IceMOS_sky130_pdk_exporter import export_calibrated_model
+from icemos.mdm_parser import MDMParser, read_mdm
+from icemos.model_io import model_blocks, parameters, patch_bin
+from icemos.param_handler import ModelModifier
+from icemos.pdk_exporter import export_calibrated_model
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = '''* Synthetic fixture; values are arbitrary, not a calibrated device.
@@ -113,7 +113,7 @@ def test_malformed_mdm_rejected(tmp_path, text):
 
 
 def test_cli_import_and_export(tmp_path, capsys):
-    from IceMOS_sky130_cli import main
+    from icemos.cli import main
     mdm = tmp_path / 'synthetic.mdm'
     mdm.write_text(MDM)
     assert main(['mdm', str(mdm), '--output', str(tmp_path / 'csv')]) == 0
@@ -130,10 +130,10 @@ def test_cli_import_and_export(tmp_path, capsys):
 @pytest.mark.skipif(shutil.which('ngspice') is None, reason='ngspice is not installed')
 @pytest.mark.parametrize('device,basename,number', [('nch', 'nfet', 40), ('pch', 'pfet', 1)])
 def test_ngspice_public_model_iv_and_output_sweep(tmp_path, monkeypatch, device, basename, number):
-    from IceMOS_sky130_simulator import IceMOS_simulator_sky130
+    from icemos.ngspice_simulator import NgspiceSimulator
     model = ROOT / 'pdk_original_models' / f'sky130_fd_pr__{basename}_01v8.pm3.spice'
     monkeypatch.chdir(tmp_path)
-    simulator = IceMOS_simulator_sky130(str(model))
+    simulator = NgspiceSimulator(str(model))
     simulator.simulate_iv(device, bin_number=number, vgate_step=0.3)
     folder = tmp_path / 'circuits' / device / f'bin_{number}'
     csv = folder / 'results_IV_ID_vs_VG' / 'IV_ID_vs_VG.csv'
@@ -151,8 +151,8 @@ def test_ngspice_public_model_iv_and_output_sweep(tmp_path, monkeypatch, device,
 
 
 def test_zero_or_negative_sweep_rejected_before_simulation():
-    from IceMOS_sky130_netlist_generator import NetlistGeneratorSky130
-    generator = NetlistGeneratorSky130('unused')
+    from icemos.ngspice_netlist_generator import NgspiceNetlistGenerator
+    generator = NgspiceNetlistGenerator('unused')
     for step in [0, -0.1, float('nan')]:
         with pytest.raises(ValueError):
             generator.generate_iv_vds_netlists('nch', bin_number=1, vgs_step=step)
@@ -161,8 +161,8 @@ def test_zero_or_negative_sweep_rejected_before_simulation():
 @pytest.mark.skipif(shutil.which('ngspice') is None, reason='ngspice is not installed')
 def test_ngspice_cli_and_normalized_output_reader(tmp_path, monkeypatch):
     import csv
-    from IceMOS_sky130_cli import main
-    from IceMOS_sky130_simulation import create_simulator
+    from icemos.cli import main
+    from icemos.simulation import create_simulator
     monkeypatch.chdir(tmp_path)
     source = ROOT / 'pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice'
     output = tmp_path / 'curves.csv'

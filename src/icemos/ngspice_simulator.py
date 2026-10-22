@@ -1,12 +1,12 @@
 from pathlib import Path
-from IceMOS_sky130_simulation import SimulationCurve
+from icemos.simulation import SimulationCurve
 import os
 import subprocess
 import sys
-from IceMOS_sky130_netlist_generator import NetlistGeneratorSky130
+from icemos.ngspice_netlist_generator import NgspiceNetlistGenerator
 
 
-class IceMOS_simulator_sky130:
+class NgspiceSimulator:
     """
     Simulator class for running SPICE netlists generated for SKY130 simulations.
 
@@ -27,7 +27,7 @@ class IceMOS_simulator_sky130:
         :param original_model_file: Path to the original SPICE model file (e.g., "sky130_fd_pr__nfet_01v8.pm3.spice").
         """
         self.original_model_file = original_model_file
-        self.generator = NetlistGeneratorSky130(original_model_file)
+        self.generator = NgspiceNetlistGenerator(original_model_file)
 
     def _simulate_netlist(self, netlist_path):
         """

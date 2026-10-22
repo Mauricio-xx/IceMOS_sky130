@@ -6,7 +6,7 @@ import sys
 sources_path = os.path.join(os.path.dirname(__file__), "../src")
 sys.path.insert(0, sources_path)
 
-from IceMOS_sky130_netlist_generator import NetlistGeneratorSky130
+from icemos.ngspice_netlist_generator import NgspiceNetlistGenerator
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     original_model_file = "../pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice"
 
     # Create an instance of the netlist generator.
-    generator = NetlistGeneratorSky130(original_model_file)
+    generator = NgspiceNetlistGenerator(original_model_file)
 
     # Option 1: Generate IV vs VDS netlists by providing a bin number for NMOS.
     print("Generating IV vs VDS netlists for NMOS using bin number 0...")

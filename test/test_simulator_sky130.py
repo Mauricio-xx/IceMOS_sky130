@@ -6,14 +6,14 @@ import sys
 sources_path = os.path.join(os.path.dirname(__file__), "../src")
 sys.path.insert(0, sources_path)
 
-from IceMOS_sky130_simulator import IceMOS_simulator_sky130
+from icemos.ngspice_simulator import NgspiceSimulator
 
 
 def test_nmos_by_bin():
     print("=== NMOS Simulation using bin number ===")
     # Path to the original NMOS model file (without "modified" in its name)
     original_model_file = "../pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice"
-    simulator = IceMOS_simulator_sky130(original_model_file)
+    simulator = NgspiceSimulator(original_model_file)
     # Simulate IV (IDRAIN vs. VGATE) using a provided bin number (e.g., 0)
     print("Simulating IV for NMOS using bin number 0:")
     iv_output = simulator.simulate_iv(device_type='nch', bin_number=0,
@@ -30,7 +30,7 @@ def test_nmos_by_bin():
 def test_nmos_by_dimensions():
     print("=== NMOS Simulation using dimensions ===")
     original_model_file = "../pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice"
-    simulator = IceMOS_simulator_sky130(original_model_file)
+    simulator = NgspiceSimulator(original_model_file)
     # Simulate IV using dimensions (e.g., W=1.26 µm, L=0.15 µm)
     print("Simulating IV for NMOS using dimensions W=1.26 µm, L=0.15 µm:")
     iv_output = simulator.simulate_iv(device_type='nch', W=1.26, L=0.15,
@@ -48,7 +48,7 @@ def test_pmos_by_bin():
     print("=== PMOS Simulation using bin number ===")
     # Path to the original PMOS model file (without "modified" in its name)
     original_model_file = "../pdk_original_models/sky130_fd_pr__pfet_01v8.pm3.spice"
-    simulator = IceMOS_simulator_sky130(original_model_file)
+    simulator = NgspiceSimulator(original_model_file)
     # Simulate IV using an explicit bin number (e.g., 10)
     print("Simulating IV for PMOS using bin number 10:")
     iv_output = simulator.simulate_iv(device_type='pch', bin_number=10,
@@ -65,7 +65,7 @@ def test_pmos_by_bin():
 def test_pmos_by_dimensions():
     print("=== PMOS Simulation using dimensions ===")
     original_model_file = "../pdk_original_models/sky130_fd_pr__pfet_01v8.pm3.spice"
-    simulator = IceMOS_simulator_sky130(original_model_file)
+    simulator = NgspiceSimulator(original_model_file)
     # Simulate IV using dimensions (for example, W=1.26 µm, L=0.15 µm)
     print("Simulating IV for PMOS using dimensions W=1.26 µm, L=0.15 µm:")
     iv_output = simulator.simulate_iv(device_type='pch', W=1.26, L=0.15,

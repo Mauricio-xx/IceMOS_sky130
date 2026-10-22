@@ -1,10 +1,10 @@
 import os
 import re
 import math
-from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+from icemos.circuit_model_extractor import ModelExtractor
 
 
-class NetlistGeneratorSky130:
+class NgspiceNetlistGenerator:
     def __init__(self, original_model_file):
         """
         Initialize the netlist generator with the path to the original SPICE model file.

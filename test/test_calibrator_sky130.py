@@ -5,9 +5,9 @@ import sys
 sources_path = os.path.join(os.path.dirname(__file__), "../src")
 sys.path.insert(0, sources_path)
 
-from IceMOS_sky130_calibrator import MainWindow
+from icemos.calibrator import MainWindow
 from PyQt5 import QtWidgets
-from IceMOS_sky130_circuit_model_extractor import ModelExtractor # for model extraction
+from icemos.circuit_model_extractor import ModelExtractor # for model extraction
 
 
 def extraction(device_type, bin_number):

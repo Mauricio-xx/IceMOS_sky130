@@ -49,15 +49,16 @@ def parse_parameters(file_path):
     print("Final data structure:", data)
     return data
 
-# Ruta al archivo de texto
-file_path = 'sky130_fd_pr__nfet_01v8.pm3.spice'
+if __name__ == '__main__':
+    # Ruta al archivo de texto
+    file_path = 'sky130_fd_pr__nfet_01v8.pm3.spice'
 
-# Parsear el archivo
-parsed_data = parse_parameters(file_path)
+    # Parsear el archivo
+    parsed_data = parse_parameters(file_path)
 
-# Imprimir los datos extraídos
-for bin_id, params in parsed_data.items():
-    print(f"Bin {bin_id}:")
-    for param, value in params.items():
-        print(f"  {param} = {value}")
+    # Imprimir los datos extraídos
+    for bin_id, params in parsed_data.items():
+        print(f"Bin {bin_id}:")
+        for param, value in params.items():
+            print(f"  {param} = {value}")
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-IceMOS_sky130_calibration_simulator.py
+icemos.calibrator
 
 This module implements a complete calibration and simulation GUI for the IceMOS Sky130 flow.
 It integrates parameter extraction from a BSIM model .lib file, allows the user to select and tune
@@ -23,8 +23,8 @@ import sys, os, json, re
 from PyQt5 import QtWidgets, QtCore, QtGui
 
 
-# Import the parameter extraction function (assumed to be defined in IceMOS_sky130_param_extractor.py)
-from IceMOS_sky130_param_extractor import extract_parameters_with_values
+# Import the parameter extraction function (assumed to be defined in icemos.param_extractor)
+from icemos.param_extractor import extract_parameters_with_values
 
 # ---------------------
 # Calibration GUI Components
@@ -593,7 +593,7 @@ class ParameterTunerWindow(QtWidgets.QWidget):
 
     def update_parameter_from_text(self, param, text):
         try:
-            from IceMOS_sky130_model_io import numeric_value
+            from icemos.model_io import numeric_value
             new_val = float(numeric_value(text))
         except ValueError:
             QtWidgets.QMessageBox.warning(self, "Invalid Input", f"'{text}' is not a valid number for {param}.")
@@ -651,8 +651,8 @@ class ParameterTunerWindow(QtWidgets.QWidget):
         )
         if filename:
             try:
-                from IceMOS_sky130_pdk_exporter import load_calibration, calibration_values
-                from IceMOS_sky130_model_io import numeric_value
+                from icemos.pdk_exporter import load_calibration, calibration_values
+                from icemos.model_io import numeric_value
                 loaded = load_calibration(filename)
                 values = calibration_values(loaded)
                 loaded_data = {}
@@ -690,7 +690,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.simulation_window = None
         self.lib_file_path = os.path.join(lib_root, self.device_type, f"bin_{bin_number}",
                                           f"bin_{bin_number}_{self.device_type}_original.lib")
-        from IceMOS_sky130_param_extractor import extract_parameters_with_values
+        from icemos.param_extractor import extract_parameters_with_values
         self.available_parameters = extract_parameters_with_values(self.lib_file_path)
         self.default_parameters = {}
         self.current_parameters = {}
@@ -733,8 +733,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def update_modified_lib(self, checked=False, notify=True):
         from pathlib import Path
-        from IceMOS_sky130_model_io import atomic_write
-        from IceMOS_sky130_pdk_exporter import export_calibrated_model
+        from icemos.model_io import atomic_write
+        from icemos.pdk_exporter import export_calibrated_model
         try:
             modified = self.lib_file_path.replace("_original.lib", "_modified.lib")
             if self.current_parameters:
@@ -763,7 +763,7 @@ class MainWindow(QtWidgets.QMainWindow):
         window.run_simulation()
 
     def export_calibrated_model(self):
-        from IceMOS_sky130_pdk_exporter import export_calibrated_model
+        from icemos.pdk_exporter import export_calibrated_model
         source = self.original_model_file or self.lib_file_path
         destination, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Export Calibrated SKY130 Model", "", "SPICE Files (*.spice *.lib)")
@@ -868,7 +868,7 @@ class SimulationWindow(QtWidgets.QDialog):
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.run_simulation)
 
-        from IceMOS_sky130_simulation import create_simulator
+        from icemos.simulation import create_simulator
         self.simulator = create_simulator(self.lib_file_path, backend, spectre_executable=spectre_executable)
         self.setup_ui()
 
@@ -934,7 +934,7 @@ class SimulationWindow(QtWidgets.QDialog):
         self.setLayout(layout)
 
     def select_backend(self, backend):
-        from IceMOS_sky130_simulation import create_simulator
+        from icemos.simulation import create_simulator
         self.timer.stop()
         self.simulator = create_simulator(self.lib_file_path, backend,
                                           spectre_executable=self.spectre_executable)
@@ -943,7 +943,7 @@ class SimulationWindow(QtWidgets.QDialog):
 
     def import_mdm(self):
         from pathlib import Path
-        from IceMOS_sky130_mdm_parser import MDMParser
+        from icemos.mdm_parser import MDMParser
         source, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import MDM", "", "MDM Files (*.mdm)")
         if not source:
             return

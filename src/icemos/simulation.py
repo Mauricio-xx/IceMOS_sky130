@@ -28,9 +28,9 @@ def sweep_values(start, stop, step):
 
 def create_simulator(model, backend='ngspice', *, spectre_executable=None):
     if backend == 'ngspice':
-        from IceMOS_sky130_simulator import IceMOS_simulator_sky130
-        return IceMOS_simulator_sky130(model)
+        from icemos.ngspice_simulator import NgspiceSimulator
+        return NgspiceSimulator(model)
     if backend == 'spectre':
-        from IceMOS_sky130_spectre_simulator import SpectreSimulatorSky130
-        return SpectreSimulatorSky130(model, executable=spectre_executable)
+        from icemos.spectre_simulator import SpectreSimulator
+        return SpectreSimulator(model, executable=spectre_executable)
     raise ValueError(f'Unknown simulator backend: {backend}')

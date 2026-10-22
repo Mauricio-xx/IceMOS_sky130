@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
-from IceMOS_sky130_circuit_model_extractor import ModelExtractor
-from IceMOS_sky130_model_io import model_blocks, numeric_value, parameters
-from IceMOS_sky130_simulation import sweep_values
+from icemos.circuit_model_extractor import ModelExtractor
+from icemos.model_io import model_blocks, numeric_value, parameters
+from icemos.simulation import sweep_values
 
 
 @dataclass
@@ -17,7 +17,7 @@ class SpectreJob:
     expected_x: list
 
 
-class SpectreNetlistGeneratorSky130:
+class SpectreNetlistGenerator:
     def __init__(self, original_model_file):
         self.original_model_file = Path(original_model_file)
 

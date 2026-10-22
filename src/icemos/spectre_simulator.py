@@ -8,9 +8,9 @@ import re
 import subprocess
 import tempfile
 
-from IceMOS_sky130_model_io import NUMBER, numeric_value
-from IceMOS_sky130_simulation import SimulationCurve
-from IceMOS_sky130_spectre_netlist_generator import SpectreNetlistGeneratorSky130
+from icemos.model_io import NUMBER, numeric_value
+from icemos.simulation import SimulationCurve
+from icemos.spectre_netlist_generator import SpectreNetlistGenerator
 
 
 def read_psf_dc(path, signal='VMEAS:p'):
@@ -58,11 +58,11 @@ def read_psf_dc(path, signal='VMEAS:p'):
                            [item[signal] for item in rows], 'Spectre')
 
 
-class SpectreSimulatorSky130:
+class SpectreSimulator:
     name = 'spectre'
 
     def __init__(self, original_model_file, *, executable=None, timeout=120):
-        self.generator = SpectreNetlistGeneratorSky130(original_model_file)
+        self.generator = SpectreNetlistGenerator(original_model_file)
         self.executable = os.fspath(executable or os.environ.get('SPECTRE_BIN') or 'spectre')
         candidate = Path(self.executable).expanduser()
         if '/' in self.executable or candidate.is_file():

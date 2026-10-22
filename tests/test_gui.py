@@ -12,8 +12,8 @@ from PyQt5 import QtWidgets
 
 
 def test_apply_simulate_reuses_window_and_applies_current_values(tmp_path, monkeypatch):
-    from IceMOS_sky130_calibrator import MainWindow
-    from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+    from icemos.calibrator import MainWindow
+    from icemos.circuit_model_extractor import ModelExtractor
     root = Path(__file__).resolve().parents[1]
     monkeypatch.chdir(tmp_path)
     source = root / 'pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice'
@@ -36,7 +36,7 @@ def test_apply_simulate_reuses_window_and_applies_current_values(tmp_path, monke
 
 
 def test_parameter_ranges_slider_reset_and_invalid_session(tmp_path, monkeypatch):
-    from IceMOS_sky130_calibrator import ParameterTunerWindow
+    from icemos.calibrator import ParameterTunerWindow
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     monkeypatch.setattr(QtWidgets.QMessageBox, 'information', lambda *args: None)
     warnings = []
@@ -69,8 +69,8 @@ def test_parameter_ranges_slider_reset_and_invalid_session(tmp_path, monkeypatch
 @pytest.mark.skipif(__import__('shutil').which('ngspice') is None, reason='ngspice is not installed')
 @pytest.mark.parametrize('device,basename,number', [('nch', 'nfet', 40), ('pch', 'pfet', 1)])
 def test_gui_runs_real_simulation_and_updates_both_plots(tmp_path, monkeypatch, device, basename, number):
-    from IceMOS_sky130_calibrator import MainWindow
-    from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+    from icemos.calibrator import MainWindow
+    from icemos.circuit_model_extractor import ModelExtractor
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     monkeypatch.chdir(tmp_path)
     warnings = []
@@ -96,8 +96,8 @@ def test_gui_runs_real_simulation_and_updates_both_plots(tmp_path, monkeypatch, 
 
 
 def test_reopened_calibration_recovers_deltas_and_removal_restores_source(tmp_path, monkeypatch):
-    from IceMOS_sky130_calibrator import MainWindow
-    from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+    from icemos.calibrator import MainWindow
+    from icemos.circuit_model_extractor import ModelExtractor
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     monkeypatch.chdir(tmp_path)
     source = Path(__file__).resolve().parents[1] / 'pdk_original_models/sky130_fd_pr__nfet_01v8.pm3.spice'
@@ -121,8 +121,8 @@ def test_reopened_calibration_recovers_deltas_and_removal_restores_source(tmp_pa
 
 
 def test_spectre_backend_gui_uses_native_results_and_switches_cleanly(tmp_path, monkeypatch, fake_spectre):
-    from IceMOS_sky130_calibrator import MainWindow
-    from IceMOS_sky130_circuit_model_extractor import ModelExtractor
+    from icemos.calibrator import MainWindow
+    from icemos.circuit_model_extractor import ModelExtractor
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     monkeypatch.chdir(tmp_path)
     warnings = []

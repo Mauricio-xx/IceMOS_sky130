@@ -41,17 +41,17 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == 'mdm':
-            from IceMOS_sky130_mdm_parser import MDMParser
+            from icemos.mdm_parser import MDMParser
             files, _ = MDMParser(args.input.parent, args.input.name, args.variables).export_csv(args.output)
             for path in files:
                 print(path)
         elif args.command == 'export':
-            from IceMOS_sky130_pdk_exporter import export_calibrated_model, load_calibration
+            from icemos.pdk_exporter import export_calibrated_model, load_calibration
             print(export_calibrated_model(args.model, args.output, args.device,
                                           {args.bin: load_calibration(args.calibration)}))
         elif args.command == 'simulate':
             import csv
-            from IceMOS_sky130_simulation import create_simulator
+            from icemos.simulation import create_simulator
             simulator = create_simulator(args.model.resolve(), args.backend, spectre_executable=args.spectre_bin)
             common = dict(bin_number=args.bin, model_type=args.variant)
             if args.analysis == 'iv':
@@ -79,8 +79,8 @@ def main(argv=None):
             print(args.output)
         else:
             from PyQt5 import QtWidgets
-            from IceMOS_sky130_circuit_model_extractor import ModelExtractor
-            from IceMOS_sky130_calibrator import MainWindow
+            from icemos.circuit_model_extractor import ModelExtractor
+            from icemos.calibrator import MainWindow
             model = args.model.resolve()
             ModelExtractor(model, args.device).extract_bin_parameters(args.bin)
             app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])

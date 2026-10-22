@@ -1,5 +1,5 @@
 """
-IceMOS_sky130_param_extractor.py
+icemos.param_extractor
 
 This module provides functionality to extract parameter names from a BSIM model .lib file.
 All parameter names are assumed to appear immediately before a " =" token.

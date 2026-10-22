@@ -11,10 +11,10 @@ import subprocess
 
 import pytest
 
-from IceMOS_sky130_model_io import parameters
-from IceMOS_sky130_simulation import create_simulator
-from IceMOS_sky130_spectre_netlist_generator import SpectreNetlistGeneratorSky130
-from IceMOS_sky130_spectre_simulator import SpectreSimulatorSky130, read_psf_dc
+from icemos.model_io import parameters
+from icemos.simulation import create_simulator
+from icemos.spectre_netlist_generator import SpectreNetlistGenerator
+from icemos.spectre_simulator import SpectreSimulator, read_psf_dc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,7 +29,7 @@ def test_native_models_use_only_parameters_from_public_bin(tmp_path, monkeypatch
     monkeypatch.chdir(tmp_path)
     source = public_model(device)
     before = source.read_bytes()
-    generator = SpectreNetlistGeneratorSky130(source)
+    generator = SpectreNetlistGenerator(source)
     jobs = generator.generate(device, bin_number=number, gate_step=0.3)
     job = jobs[0]
     original = job.netlist.parent.parent / f'bin_{number}_{device}_modified.lib'
@@ -111,7 +111,7 @@ def test_wrapper_iv_output_csv_and_inherited_environment(tmp_path, monkeypatch, 
 @pytest.mark.parametrize('mode', ['fail', 'logfailure', 'missing', 'truncated', 'incomplete'])
 def test_failed_or_incomplete_run_never_reuses_previous_curves(tmp_path, monkeypatch, fake_spectre, mode):
     monkeypatch.chdir(tmp_path)
-    simulator = SpectreSimulatorSky130(public_model('nch'), executable=fake_spectre)
+    simulator = SpectreSimulator(public_model('nch'), executable=fake_spectre)
     simulator.simulate_iv('nch', bin_number=40, vgate_step=0.9)
     monkeypatch.setenv('FAKE_SPECTRE_MODE', mode)
     with pytest.raises((RuntimeError, ValueError)):
@@ -122,7 +122,7 @@ def test_failed_or_incomplete_run_never_reuses_previous_curves(tmp_path, monkeyp
 
 def test_missing_executable_and_timeout_are_reported(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    simulator = SpectreSimulatorSky130(public_model('nch'), executable=tmp_path / 'missing')
+    simulator = SpectreSimulator(public_model('nch'), executable=tmp_path / 'missing')
     with pytest.raises(RuntimeError, match='Spectre executable not found'):
         simulator.simulate_iv('nch', bin_number=40)
     def timeout(*args, **kwargs):
@@ -134,7 +134,7 @@ def test_missing_executable_and_timeout_are_reported(tmp_path, monkeypatch):
 
 def test_invalid_request_does_not_launch_spectre(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    generator = SpectreNetlistGeneratorSky130(public_model('nch'))
+    generator = SpectreNetlistGenerator(public_model('nch'))
     with pytest.raises(ValueError):
         generator.generate('nch', bin_number=40, gate_step=0)
     with pytest.raises(ValueError):
@@ -145,7 +145,7 @@ def test_invalid_request_does_not_launch_spectre(tmp_path, monkeypatch):
 
 
 def test_cli_spectre_and_model_variant(tmp_path, monkeypatch, fake_spectre):
-    from IceMOS_sky130_cli import main
+    from icemos.cli import main
     monkeypatch.chdir(tmp_path)
     output = tmp_path / 'curves.csv'
     assert main(['simulate', str(public_model('pch')), '--backend', 'spectre',
@@ -166,7 +166,7 @@ SPECTRE = os.environ.get('SPECTRE_BIN') or shutil.which('spectre')
 @pytest.mark.parametrize('device,number', [('nch', 40), ('pch', 1)])
 def test_real_spectre_public_model_iv_and_output(tmp_path, monkeypatch, device, number):
     monkeypatch.chdir(tmp_path)
-    simulator = SpectreSimulatorSky130(public_model(device), executable=SPECTRE)
+    simulator = SpectreSimulator(public_model(device), executable=SPECTRE)
     simulator.simulate_iv(device, bin_number=number, vgate_step=0.3)
     curve = simulator.read_iv_results(device, number)
     assert len(curve.x) == 7 and all(map(math.isfinite, curve.y))
