@@ -414,6 +414,8 @@ class ParameterTunerWindow(QtWidgets.QWidget):
                     candidate2 = default_val * 1.5
                     min_val = min(candidate1, candidate2)
                     max_val = max(candidate1, candidate2)
+                min_val = min(min_val, current)
+                max_val = max(max_val, current)
                 values["min"] = min_val
                 values["max"] = max_val
             else:
